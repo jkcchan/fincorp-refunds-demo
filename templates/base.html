@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-cookie-name" content="{{ csrf_cookie_name }}">
   <title>{% block title %}FinCorp{% endblock %} | FinCorp</title>
   <link rel="stylesheet" href="{% static 'site.css' %}">
   <style>:root{--navy:{{ brand.NAVY }};--teal:{{ brand.TEAL }}}</style>

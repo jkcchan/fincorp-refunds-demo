@@ -30,7 +30,7 @@ def checkout(commit, name):
     return path
 
 
-def child_env(commit, db, environment):
+def child_env(commit, db, environment, name):
     # Explicit allowlist: preview and runtime never inherit controller/Devin credentials.
     return {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
@@ -40,6 +40,7 @@ def child_env(commit, db, environment):
         "FINCORP_REFUNDS_DB": str(db),
         "FINCORP_COMMIT": commit,
         "FINCORP_ENVIRONMENT": environment,
+        "FINCORP_INSTANCE": name,
         "FINCORP_MODE": os.getenv("FINCORP_MODE", "manual"),
         "FINCORP_CONTROL_URL": os.getenv("FINCORP_CONTROL_URL", "http://127.0.0.1:8000"),
         "FINCORP_SECRET_KEY": secrets.token_hex(32),
@@ -72,7 +73,7 @@ def serve(commit, db, environment, port, name):
     try:
         proc = subprocess.Popen(
             [str(PYTHON), "manage.py", "runserver", "--noreload", "--insecure", f"127.0.0.1:{port}"],
-            cwd=path, env=child_env(commit, db, environment), stdout=logfile, stderr=subprocess.STDOUT,
+            cwd=path, env=child_env(commit, db, environment, name), stdout=logfile, stderr=subprocess.STDOUT,
             start_new_session=True,
         )
     finally:

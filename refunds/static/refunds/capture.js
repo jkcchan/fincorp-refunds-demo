@@ -4,9 +4,10 @@
   }
   function report(message, stack) {
     const match = location.pathname.match(/\/cases\/(RF-[A-Z0-9-]+)\//);
+    const csrfName = document.querySelector('meta[name="csrf-cookie-name"]').content;
     fetch("/telemetry/", {
       method: "POST", credentials: "same-origin",
-      headers: {"Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(cookie("csrftoken"))},
+      headers: {"Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(cookie(csrfName))},
       body: JSON.stringify({
         message: String(message).slice(0, 400), stack: String(stack || "").slice(0, 6000),
         route: location.pathname, case_reference: match?.[1] || "",

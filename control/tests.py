@@ -118,6 +118,14 @@ class IntakeTests(TestCase):
         self.assertEqual(change.events.filter(stage="preview error").count(), 1)
         self.assertNotIn("old runtime", change.events.first().detail)
 
+    def test_preview_environment_has_no_controller_or_devin_credentials(self):
+        from .runner import child_env
+        with patch.dict("os.environ", {"DEVIN_API_KEY": "cog_example", "FINCORP_CONTROL_DB": "sensitive.sqlite3"}):
+            env = child_env("a" * 40, Path("/tmp/preview.sqlite3"), "preview", "preview-52")
+        self.assertNotIn("DEVIN_API_KEY", env)
+        self.assertNotIn("FINCORP_CONTROL_DB", env)
+        self.assertEqual(env["FINCORP_INSTANCE"], "preview-52")
+
     def test_failed_health_restores_runtime_selection(self):
         from .runner import release
         change = Change.objects.create(reporter=self.ops, report="Release probe", merged_commit="b" * 40)

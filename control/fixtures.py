@@ -12,7 +12,7 @@ def replace(path, before, after):
 
 
 def candidate(change, revision=False):
-    name = change.run_id[:16]
+    name = change.run_id[:16] + "-" + change.base[:10]
     path = RUNS / "fixtures" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     if not (path / ".git").exists():

@@ -57,4 +57,9 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
+instance = os.getenv("FINCORP_INSTANCE", ROLE)
+if not instance.replace("-", "").replace("_", "").isalnum():
+    raise RuntimeError("Invalid local instance name")
+SESSION_COOKIE_NAME = f"fincorp_{instance}_session"
+CSRF_COOKIE_NAME = f"fincorp_{instance}_csrf"
 X_FRAME_OPTIONS = "SAMEORIGIN"
