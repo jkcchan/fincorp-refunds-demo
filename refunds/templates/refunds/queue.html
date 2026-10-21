@@ -7,7 +7,7 @@
   <div><label for="q">Case or payment reference</label><input id="q" name="q" value="{{ query }}" placeholder="Search references"></div>
   <div><label for="status">Status</label><select id="status" name="status"><option value="">All statuses</option>{% for value,label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
   <div><label for="currency">Currency</label><select id="currency" name="currency"><option value="">All currencies</option><option value="USD" {% if currency == 'USD' %}selected{% endif %}>USD</option><option value="CAD" {% if currency == 'CAD' %}selected{% endif %}>CAD</option></select></div>
-  <div><label for="assignee">Assignee</label><select id="assignee" name="assignee"><option value="">Everyone</option><option value="mine" {% if assignee_filter == "mine" %}selected{% endif %}>Assigned to me</option></select></div>
+  <div><label for="assignee">Assignee</label><select id="assignee" name="assignee"><option value="">Everyone</option><option value="mine" {% if assignee_filter == "mine" %}selected{% endif %}>Assigned to me</option><option value="unassigned" {% if assignee_filter == "unassigned" %}selected{% endif %}>Unassigned</option></select></div>
   <button>Apply filters</button>
 </form>
 <section class="card tablewrap"><table><thead><tr><th>Case / payment</th><th>Reason</th><th>Requested</th><th>Age</th><th>Assignee</th><th>Status</th></tr></thead>

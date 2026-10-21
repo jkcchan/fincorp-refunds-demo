@@ -37,6 +37,8 @@ def queue(request):
         cases = cases.filter(payment__currency=currency)
     if assignee_filter == "mine":
         cases = cases.filter(assignee=request.user)
+    elif assignee_filter == "unassigned":
+        cases = cases.filter(assignee__isnull=True)
     totals = cases.values("payment__currency").annotate(total=Sum("requested_minor")).order_by("payment__currency")
     return render(request, "refunds/queue.html", {
         "cases": cases, "query": query, "status": status, "currency": currency, "assignee_filter": assignee_filter, "statuses": Case.STATUSES,
