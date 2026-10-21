@@ -26,6 +26,11 @@ FINCORP_ROLE=control .venv/bin/python manage.py runserver --noreload --insecure 
 
 Open `http://127.0.0.1:8000/` (console) and `http://127.0.0.1:8001/` (refunds). The runtime supervisor runs the selected committed checkout; the worker checks real candidate commits in separate Git worktrees and starts one preview per candidate at `127.0.0.1:8200+change_id`. Merges advance `.runs/release-tree`, **not** the trusted controller source branch. Previews have their own synthetic SQLite copies and sessions; the controller's database, API credentials, risk policy, evaluation scripts, and merge authority do not enter those processes. The iframe may first show a preview login screen; use the same local demo login or **Open in new tab**.
 
+The trusted checkout launcher namespaces session cookies even for old demo commits.
+Old commits still use a shared CSRF cookie for browser-error reporting, so reload
+an open form if another preview login causes a CSRF error. The controller never
+gives candidate code its API key or database path.
+
 | Username | Local password | Refunds role / console role |
 | --- | --- | --- |
 | `ops` | `ops-demo-2026` | Operate, create/submit, report |
@@ -72,6 +77,11 @@ FINCORP_ROLE=control .venv/bin/python manage.py test control
 ```
 
 `--once` is not needed with the continuous worker. Browser screenshots, including baseline exception and corrected preview, go to ignored `artifacts/`. Check source and behavior, not just a simulated progress animation.
+
+Before running the sample evals, use the demo-only tools-admin control to seed
+`RF-LEGACY-NULL` on the runtime. The bug trial copies that synthetic row into
+its isolated baseline and preview databases. Without the row, the bug trial
+cannot reproduce the documented crash.
 
 `scripts/reset_demo.py --confirm-demo-reset` is an **explicit destructive demo-only action**: it removes the named `RF-LEGACY-NULL` row and its own audit events, reseeds missing named synthetic fixtures, and selects the named baseline version in a new release worktree. It leaves prior worktrees, other cases, captured evidence, other work items and Git history alone. Restart the controller and worker after reset (they hold the former release-tree selection in memory). Do not run without deciding that deletion is acceptable; reset is not needed for normal operation. Demo patches are schema-compatible.
 
