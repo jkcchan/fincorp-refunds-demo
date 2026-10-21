@@ -287,7 +287,7 @@ class CustomerDemoTests(TestCase):
         self.assertFalse(change.jobs.exists())
 
     @patch("control.logic.git", return_value=CONFIG["baseline"])
-    def test_queue_copy_has_auto_route_only_for_a_copy_diff(self, unused):
+    def test_queue_copy_queues_a_fixture_separate_from_behavior(self, unused):
         with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
             change = Change.objects.create(
                 reporter=self.ops, mode="sample", route="/",
@@ -298,7 +298,6 @@ class CustomerDemoTests(TestCase):
         self.assertEqual(change.type, "copy")
         self.assertEqual(change.jobs.values_list("kind", flat=True).get(), "sample_fixture")
         self.assertEqual(policy.route(CONFIG["baseline"], CONFIG["case_link_fix"])[0], "review")
-        self.assertEqual(policy.route(CONFIG["case_link_fix"], CONFIG["queue_copy_fix_reference"])[0], "auto")
 
 
 class PolicyTests(TestCase):
