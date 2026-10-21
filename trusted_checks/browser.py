@@ -15,6 +15,26 @@ def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1365, "height": 900})
+        if SCENARIO == "case-link-review":
+            change_id = sys.argv[3]
+            page.goto(URL + "/login/")
+            page.locator('input[name="username"]').fill("toolsadmin")
+            page.locator('input[name="password"]').fill("tools-demo-2026")
+            page.get_by_role("button", name="Sign in").click()
+            page.goto(URL + f"/changes/{change_id}/")
+            assert page.get_by_role("button", name="Approve change").count() == 1
+            frame = page.frame_locator("iframe.preview")
+            frame.locator('input[name="username"]').fill("ops")
+            frame.locator('input[name="password"]').fill("ops-demo-2026")
+            with page.expect_response(lambda response: response.request.method == "POST" and "/login/" in response.url):
+                frame.get_by_role("button", name="Sign in").click()
+            frame.get_by_role("link", name="RF-1009").click()
+            frame.get_by_role("button", name="Copy case link").click()
+            frame.get_by_text("Case link copied.").wait_for(state="visible", timeout=5000)
+            page.screenshot(path=str(ARTIFACTS / f"{SCENARIO}-{change_id}.png"), full_page=True)
+            print(f"PASS {SCENARIO} #{change_id}: link works inside review preview")
+            browser.close()
+            return
         if SCENARIO == "session-isolation":
             # One browser context shares cookies across these ports.
             preview = sys.argv[3].rstrip("/")
