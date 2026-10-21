@@ -6,7 +6,7 @@ previews, and enforces the review and release gates. Do not describe its events
 as a live Devin session or its checks as an agent's hidden reasoning.
 
 In this workspace, a fresh demo is already prepared and running at
-`http://127.0.0.1:8101/` and `http://127.0.0.1:8100/`. It has **zero work
+`http://127.0.0.1:8001/` and `http://127.0.0.1:8000/`. It has **zero work
 items**, so your first and second reports will become changes #1 and #2.
 Use the setup instructions only for another rehearsal. Choose a new clone
 directory rather than replacing the existing demo.
@@ -33,17 +33,18 @@ resetting it. Start these commands in four terminals in the fresh checkout.
 Source `scripts/customer_demo_env.sh` in **each** terminal first:
 
 ```sh
-FINCORP_ROLE=control .venv/bin/python manage.py runserver --noreload --insecure 127.0.0.1:8100
+FINCORP_ROLE=control .venv/bin/python manage.py runserver --noreload --insecure 127.0.0.1:8000
 .venv/bin/python scripts/worker.py
 .venv/bin/python scripts/serve_runtime.py
 .venv/bin/python scripts/serve_original.py
 ```
 
-Open `http://127.0.0.1:8101/` for refunds and `http://127.0.0.1:8100/` for
+Open `http://127.0.0.1:8001/` for refunds and `http://127.0.0.1:8000/` for
 the console. The original baseline stays available at `:8401` even after
 releases. The controller owns a separate database in this checkout; its
-previews use `:8300+change_id` and separate SQLite copies. The original
-demo still uses `:8000` and `:8001`.
+previews use `:8300+change_id` and separate SQLite copies. The previous
+manual demo's databases are preserved; its servers are stopped while this
+customer demo uses `:8000` and `:8001`.
 
 Use `ops` / `ops-demo-2026` to report issues and `toolsadmin` /
 `tools-demo-2026` to review software. Both are local synthetic accounts.
@@ -68,7 +69,7 @@ the second story; do not fix it yet.
    The intake carries `/cases/RF-1009/`, the case reference, and the runtime
    commit without asking the reporter for diagnostic details. In this fresh
    checkout, the work item is **change #1**.
-3. Open `http://127.0.0.1:8100/changes/1/` and wait for **Ready for review**.
+3. Open `http://127.0.0.1:8000/changes/1/` and wait for **Ready for review**.
    The trace shows a queued sample task, an actual local fixture commit,
    enforced `review` routing for the frontend diff, baseline browser
    reproduction, candidate browser check, and the review gate. There is **no
@@ -93,7 +94,7 @@ The independent checks are reproducible without the review UI:
 ```sh
 .venv/bin/python trusted_checks/browser.py http://127.0.0.1:8401 case-link-red
 .venv/bin/python trusted_checks/browser.py http://127.0.0.1:8301 case-link-green
-.venv/bin/python trusted_checks/browser.py http://127.0.0.1:8100 case-link-review 1
+.venv/bin/python trusted_checks/browser.py http://127.0.0.1:8000 case-link-review 1
 ```
 
 Run the iframe check before clicking **Approve change**, when its review
@@ -119,13 +120,13 @@ still reads **Review requets and track every decision.**
    There is **no Approve change click** on this route. The worker merges,
    releases, and verifies the runtime.
 3. Compare the stable original baseline at `http://127.0.0.1:8401/` with
-   preview `:8302` or the released runtime at `:8101`. The console trace
+   preview `:8302` or the released runtime at `:8001`. The console trace
    records both the merge and the separate release.
 
 ```sh
 .venv/bin/python trusted_checks/browser.py http://127.0.0.1:8401 queue-intro-red
 .venv/bin/python trusted_checks/browser.py http://127.0.0.1:8302 queue-intro-green
-.venv/bin/python trusted_checks/browser.py http://127.0.0.1:8101 queue-intro-green
+.venv/bin/python trusted_checks/browser.py http://127.0.0.1:8001 queue-intro-green
 ```
 
 Do not use the older `scripts/reset_demo.py` on the original application

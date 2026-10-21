@@ -82,3 +82,9 @@ and the queue typo. The control database has **zero work items**. Control
 `:8100`, runtime `:8101`, the stable original `:8401`, and the worker were
 left running for a customer to submit #1 and #2. No candidate was merged
 or released in this presenter-ready clone.
+
+The customer demo was later moved to `:8000` for control and `:8001` for
+refunds, with the reference baseline still on `:8401`. The previous
+manual demo's servers were stopped without deleting their databases,
+worktrees, or review history. The current presenter steps and ports are in
+`docs/demo-walkthrough.md`.

@@ -51,8 +51,9 @@ Accounts are ordinary demo passwords, not SSO. Bind servers to loopback only. Ne
 
 ## Modes and demo runbook
 
-For a customer-facing before/after walkthrough that does not reset this
-checkout, follow [the isolated customer demo](docs/customer-demo.md). It uses
+For a customer-facing before/after walkthrough on ports `8000` and `8001`
+that does not reset this checkout, follow
+[the one-page demo guide](docs/demo-walkthrough.md). It uses
 RF-1009, a genuinely inert case-link button on a named baseline, a checked
 frontend fix awaiting human review, and a separate copy-only automatic
 release. Both are explicitly labeled local sample fixtures, not Devin runs.
