@@ -46,6 +46,35 @@ def main():
         page.wait_for_url(URL + "/")
         assert page.get_by_role("heading", name="Refund", exact=False).count() > 0
         assert page.get_by_text("Synthetic data").count() > 0
+        if SCENARIO in ("queue-intro-red", "queue-intro-green"):
+            expected = ("Review requets" if SCENARIO.endswith("red") else "Review requests") + " and track every decision."
+            assert page.get_by_text(expected, exact=True).is_visible()
+            assert not errors, errors
+            page.screenshot(path=str(ARTIFACTS / f"{SCENARIO}-{URL.split(':')[-1]}.png"), full_page=True)
+            print(f"PASS {SCENARIO} at {URL}: {expected}")
+            browser.close()
+            return
+        if SCENARIO in ("case-link-red", "case-link-green"):
+            page.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=URL)
+            page.goto(URL + "/cases/RF-1009/")
+            assert page.get_by_text("PAY-MAPLE-008").count() > 0
+            button = page.get_by_role("button", name="Copy case link")
+            button.wait_for(state="visible")
+            page.evaluate("navigator.clipboard.writeText('original clipboard value')")
+            button.click()
+            feedback = page.locator("#copy-link-result")
+            if SCENARIO.endswith("green"):
+                feedback.get_by_text("Case link copied.").wait_for(state="visible", timeout=5000)
+                assert page.evaluate("navigator.clipboard.readText()") == URL + "/cases/RF-1009/"
+            else:
+                page.wait_for_timeout(350)
+                assert feedback.inner_text() == "", "Broken baseline unexpectedly displayed feedback"
+                assert page.evaluate("navigator.clipboard.readText()") == "original clipboard value"
+            assert not errors, errors
+            page.screenshot(path=str(ARTIFACTS / f"{SCENARIO}-{URL.split(':')[-1]}.png"), full_page=True)
+            print(f"PASS {SCENARIO} at {URL}: actual clipboard and feedback checked")
+            browser.close()
+            return
         if SCENARIO == "copy":
             assert page.get_by_role("heading", name="Refund requests").count() == 1
         if SCENARIO.startswith("feature"):
