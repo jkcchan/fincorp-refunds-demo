@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import subprocess
+import signal
 import tempfile
 from pathlib import Path
 from contextlib import nullcontext
@@ -126,6 +127,13 @@ class IntakeTests(TestCase):
         self.assertNotIn("FINCORP_CONTROL_DB", env)
         self.assertEqual(env["FINCORP_INSTANCE"], "preview-52")
 
+    def test_stop_falls_back_when_process_group_signal_is_disallowed(self):
+        from .runner import stop
+        with patch("control.runner.os.killpg", side_effect=PermissionError), \
+                patch("control.runner.os.kill") as signal_pid:
+            stop(519)
+        signal_pid.assert_called_once_with(519, signal.SIGTERM)
+
     def test_failed_health_restores_runtime_selection(self):
         from .runner import release
         change = Change.objects.create(reporter=self.ops, report="Release probe", merged_commit="b" * 40)
@@ -133,6 +141,7 @@ class IntakeTests(TestCase):
         with patch("control.runner.release_lock", return_value=nullcontext()), \
                 patch("control.runner.runtime_state", return_value={"commit": "a" * 40}), \
                 patch("control.runner.select_runtime", side_effect=calls.append), \
+                patch("control.runner.git", side_effect=lambda *args: change.merged_commit if args[0] == "rev-parse" else change.head), \
                 patch("control.runner.probe", return_value=False), \
                 patch("control.runner.time.sleep"), \
                 patch("control.logic.event"):

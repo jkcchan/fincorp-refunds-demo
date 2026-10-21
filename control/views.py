@@ -181,6 +181,11 @@ def action(request, pk):
         elif action_name == "retry":
             if change.head:
                 job(change, "checks", change.head + "-retry-" + str(change.events.count()))
+        elif action_name == "retry_release":
+            if change.status != "merged" or not change.merged_commit or change.released_commit:
+                raise ValueError("Only a verified, unreleased merge can retry release.")
+            job(change, "release", change.merged_commit + "-retry-" + str(change.events.count()))
+            event(change, "release retry", f"Retrying verified merge {change.merged_commit}.", actor=request.user.username, source="review")
         else:
             raise ValueError("Unknown action.")
         messages.success(request, "Change updated.")

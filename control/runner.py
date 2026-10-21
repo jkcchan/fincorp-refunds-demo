@@ -93,6 +93,12 @@ def stop(pid):
     if pid:
         try:
             os.killpg(pid, signal.SIGTERM)
+        except PermissionError:
+            # Some local hosts disallow process-group signals even to owned children.
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
         except ProcessLookupError:
             pass
 
@@ -174,6 +180,8 @@ def merge(change):
 def release(change):
     from .logic import event
     with release_lock():
+        if git("rev-parse", f"{change.merged_commit}^{{commit}}") != change.merged_commit or git("merge-base", change.head, change.merged_commit) != change.head:
+            raise ValueError("Release revision is not the verified merge of this candidate.")
         previous = runtime_state()["commit"]
         select_runtime(change.merged_commit)
         url = os.getenv("FINCORP_RUNTIME_URL", "http://127.0.0.1:8001")
