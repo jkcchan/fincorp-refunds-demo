@@ -5,6 +5,12 @@ not Devin output. The worker performs real browser checks, starts real candidate
 previews, and enforces the review and release gates. Do not describe its events
 as a live Devin session or its checks as an agent's hidden reasoning.
 
+In this workspace, a fresh demo is already prepared and running at
+`http://127.0.0.1:8101/` and `http://127.0.0.1:8100/`. It has **zero work
+items**, so your first and second reports will become changes #1 and #2.
+Use the setup instructions only for another rehearsal. Choose a new clone
+directory rather than replacing the existing demo.
+
 ## Prepare a separate demo
 
 Use a fresh local checkout to keep the current control database, refund cases,

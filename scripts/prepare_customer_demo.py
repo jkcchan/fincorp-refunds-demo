@@ -13,6 +13,10 @@ base = config["baseline"]
 
 if os.getenv("FINCORP_MODE") != "sample":
     raise SystemExit("Set FINCORP_MODE=sample explicitly for this recorded fixture demo.")
+for name, filename in (("FINCORP_CONTROL_DB", "control.sqlite3"), ("FINCORP_REFUNDS_DB", "refunds.sqlite3")):
+    configured = os.getenv(name)
+    if configured and Path(configured).resolve() != ROOT / filename:
+        raise SystemExit(f"{name} must use this fresh checkout's {filename}; existing data will not be touched.")
 if any(path.exists() for path in (RUNS / "release-tree", RUNS / "runtime.json", ROOT / "control.sqlite3", ROOT / "refunds.sqlite3")):
     raise SystemExit("Use a fresh checkout. Existing demo data and release selections will not be changed.")
 subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", base + "^{commit}"], check=True)

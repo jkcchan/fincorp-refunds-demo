@@ -70,3 +70,15 @@ Local screenshots in the ignored rehearsal checkout:
 
 These replay results verify the local application and release gates. They
 do not measure Devin performance, usage cost, or protected remote merging.
+
+## Presenter-ready checkout
+
+A second fresh clone at `.runs/customer-demo` was prepared from
+`6c82bb3490c41e52f9996c410b2a796ff1caa557` without a Git remote or
+network download. Cached local Python packages were reused. Both migrations,
+21 control tests, 8 refunds tests, and Django system checks passed. Browser
+checks at the actual runtime `:8101` observed the inert case-link button
+and the queue typo. The control database has **zero work items**. Control
+`:8100`, runtime `:8101`, the stable original `:8401`, and the worker were
+left running for a customer to submit #1 and #2. No candidate was merged
+or released in this presenter-ready clone.

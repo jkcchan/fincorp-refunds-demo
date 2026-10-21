@@ -287,6 +287,17 @@ class CustomerDemoTests(TestCase):
         self.assertFalse(change.jobs.exists())
 
     @patch("control.logic.git", return_value=CONFIG["baseline"])
+    def test_manual_work_item_cannot_change_mode_during_clarification(self, unused):
+        with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
+            change = Change.objects.create(
+                reporter=self.ops, mode="manual", route="/cases/RF-1009/", case_reference="RF-1009",
+                report="Copy case link does nothing on this case; please investigate.",
+            )
+            triage(change)
+        self.assertNotIn("sample_scenario", change.safe_context)
+        self.assertFalse(change.jobs.exists())
+
+    @patch("control.logic.git", return_value=CONFIG["baseline"])
     def test_queue_copy_queues_a_fixture_separate_from_behavior(self, unused):
         with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
             change = Change.objects.create(

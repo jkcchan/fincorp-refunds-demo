@@ -13,7 +13,7 @@ CHECKS = {
 
 
 def identify(change):
-    if os.getenv("FINCORP_CUSTOMER_DEMO") != "1" or mode() != "sample":
+    if change.mode != "sample" or os.getenv("FINCORP_CUSTOMER_DEMO") != "1" or mode() != "sample":
         return ""
     text = change.report.lower()
     if (change.case_reference == CONFIG["case_reference"]
