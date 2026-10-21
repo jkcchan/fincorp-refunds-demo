@@ -6,10 +6,13 @@ from django.core.exceptions import ValidationError
 from django.db import close_old_connections
 from django.test import TransactionTestCase
 from django.urls import reverse
+from django.utils import timezone
 from .forms import CaseForm
 from .models import AuditEvent, Case, Payment
 from .services import DecisionError, decide
 from scripts.seed import seed_refunds, seed_users
+
+SEEDED_CASE_REFS = [f"RF-10{n:02d}" for n in range(1, 16)]
 
 
 class RefundFlowTests(TransactionTestCase):
@@ -127,3 +130,43 @@ class RefundFlowTests(TransactionTestCase):
         self.assertNotIn("abc123", error.stack)
         self.assertNotIn("not-stored", error.log_excerpt)
         self.assertNotIn("secret123", sanitize("password=secret123"))
+
+
+class SeedDataTests(TransactionTestCase):
+    def setUp(self):
+        seed_users()
+        seed_refunds()
+
+    def test_seeded_cases_have_realistic_age_spread(self):
+        ages = list(
+            Case.objects.filter(reference__in=SEEDED_CASE_REFS)
+            .values_list("reference", "created_at")
+        )
+        self.assertEqual(len(ages), len(SEEDED_CASE_REFS))
+        stamps = [created for _, created in ages]
+        self.assertLessEqual(max(stamps) - min(stamps), timezone.timedelta(days=45))
+        self.assertGreaterEqual(max(stamps) - min(stamps), timezone.timedelta(days=30))
+        self.assertGreaterEqual(len({s.date() for s in stamps}), 8)
+        self.assertLessEqual(timezone.now() - max(stamps), timezone.timedelta(days=1))
+        audits = AuditEvent.objects.filter(case__reference__in=SEEDED_CASE_REFS, action="demo_seed")
+        for event in audits:
+            self.assertAlmostEqual(event.occurred_at, event.case.created_at, delta=timezone.timedelta(seconds=1))
+
+    def test_seed_is_idempotent_and_preserves_manual_edits(self):
+        User = get_user_model()
+        ops = User.objects.get(username="ops")
+        payment = Payment.objects.create(reference="PAY-MANUAL", merchant="Manual Row", currency="USD", amount_minor=900)
+        manual = Case.objects.create(reference="RF-MANUAL-1", payment=payment, requested_minor=100,
+                                     reason="Manual", status=Case.NEW, submitter=ops)
+        edited = Case.objects.get(reference="RF-1006")
+        edited.note = "Manually triaged by ops."
+        edited.save()
+        counts_before = Case.objects.filter(reference__in=SEEDED_CASE_REFS).count()
+        audits_before = AuditEvent.objects.filter(case__reference__in=SEEDED_CASE_REFS).count()
+        seed_refunds()
+        seed_refunds()
+        self.assertEqual(Case.objects.filter(reference__in=SEEDED_CASE_REFS).count(), counts_before)
+        self.assertEqual(AuditEvent.objects.filter(case__reference__in=SEEDED_CASE_REFS).count(), audits_before)
+        self.assertEqual(Case.objects.get(reference="RF-1006").note, "Manually triaged by ops.")
+        self.assertTrue(Case.objects.filter(pk=manual.pk).exists())
+        self.assertEqual(Case.objects.get(reference="RF-1004").status, Case.APPROVED)
