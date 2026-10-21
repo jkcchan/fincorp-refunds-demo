@@ -6,7 +6,10 @@ previews, and enforces the review and release gates. Do not describe its events
 as a live Devin session or its checks as an agent's hidden reasoning.
 
 The current demo at `http://127.0.0.1:8001/` and
-`http://127.0.0.1:8000/` already has changes **#1 and #2 released**.
+`http://127.0.0.1:8000/` has the broken RF-1009 button on the runtime
+and **change #1 Ready for review** with a fixed preview. The recorded
+automatic copy release remains in the earlier rehearsal, not the active
+control database.
 Use [the short presenter walkthrough](demo-walkthrough.md) for that
 populated demo. The setup and report-submission instructions here apply
 only to a separate, fresh rehearsal. Do not run them against the current

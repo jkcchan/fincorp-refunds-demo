@@ -96,3 +96,13 @@ at `:8401` and their working checked previews at `:8301` and `:8302`.
 The unused empty presenter checkout was stopped and retained. The
 before/after browser checks passed again after the port switch. The
 short current-state guide is `docs/demo-walkthrough.md`.
+
+To make the broken behavior visible on the actual `:8001` runtime, the
+already-prepared baseline checkout was selected again without deleting
+the populated rehearsal. Its 15 synthetic cases were preserved. RF-1009's
+Copy case link check failed on `:8001`, while the fixed candidate check
+passed on preview `:8301`, including inside the console iframe. Sample
+change #1 was filed through the refunds UI and is **Ready for review**;
+it has no release or Devin session. The older completed #1/#2 rehearsal
+history remains in `.runs/customer-rehearsal` rather than being
+presented as current release state.
