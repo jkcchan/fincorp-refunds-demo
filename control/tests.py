@@ -1,8 +1,9 @@
 import json
+import os
+import signal
 import sqlite3
 import subprocess
-import signal
-from django.utils import timezone
+import sys
 import tempfile
 from pathlib import Path
 from contextlib import nullcontext
@@ -10,6 +11,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from . import policy
 from .logic import attach, can_merge, event, triage
 from .models import Change, Job, Review
@@ -127,6 +129,38 @@ class IntakeTests(TestCase):
         self.assertNotIn("DEVIN_API_KEY", env)
         self.assertNotIn("FINCORP_CONTROL_DB", env)
         self.assertEqual(env["FINCORP_INSTANCE"], "preview-52")
+
+    def test_serve_launches_checkout_through_trusted_launcher(self):
+        from . import runner
+        with tempfile.TemporaryDirectory() as folder, \
+                patch("control.runner.RUNS", Path(folder)), \
+                patch("control.runner.checkout", return_value=Path(folder)), \
+                patch("control.runner.probe", return_value=True), \
+                patch("control.runner.subprocess.Popen") as popen:
+            popen.return_value.poll.return_value = None
+            popen.return_value.pid = 1234
+            runner.serve("a" * 40, Path(folder) / "db.sqlite3", "preview", 8299, "preview-9-deadbeef")
+        command = popen.call_args.args[0]
+        self.assertTrue(command[1].endswith("scripts/run_checkout.py"))
+        self.assertEqual(command[2], "runserver")
+
+    def test_launcher_namespaces_session_cookie_for_legacy_settings(self):
+        launcher = Path(__file__).resolve().parent.parent / "scripts" / "run_checkout.py"
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "fincorp").mkdir()
+            (root / "fincorp" / "__init__.py").write_text("")
+            (root / "fincorp" / "settings.py").write_text("SECRET_KEY = 'test'\n")
+            (root / "manage.py").write_text(
+                "from django.conf import settings\n"
+                "print(settings.SESSION_COOKIE_NAME, settings.CSRF_COOKIE_NAME)\n"
+            )
+            env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": folder,
+                   "DJANGO_SETTINGS_MODULE": "fincorp.settings", "FINCORP_INSTANCE": "preview-9-deadbeef"}
+            result = subprocess.run([sys.executable, str(launcher)], cwd=root, env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "fincorp_preview-9-deadbeef_session csrftoken")
 
     def test_stop_falls_back_when_process_group_signal_is_disallowed(self):
         from .runner import stop

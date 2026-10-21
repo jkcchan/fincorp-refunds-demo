@@ -2,7 +2,6 @@
 """Controller-owned Playwright outcome checks, run against actual HTTP revisions."""
 import os
 import sys
-import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -16,6 +15,28 @@ def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1365, "height": 900})
+        if SCENARIO == "session-isolation":
+            # One browser context shares cookies across these ports.
+            preview = sys.argv[3].rstrip("/")
+            page.goto(URL + "/login/")
+            page.locator('input[name="username"]').fill("ops")
+            page.locator('input[name="password"]').fill("ops-demo-2026")
+            page.get_by_role("button", name="Sign in").click()
+            page.wait_for_url(URL + "/")
+            page.goto(preview + "/login/")
+            page.locator('input[name="username"]').fill("ops2")
+            page.locator('input[name="password"]').fill("ops2-demo-2026")
+            page.get_by_role("button", name="Sign in").click()
+            page.wait_for_url(preview + "/")
+            page.goto(URL + "/")
+            assert page.url == URL + "/", f"runtime session lost after preview login: {page.url}"
+            assert page.locator(".user").inner_text() == "ops", "runtime session was overwritten by preview login"
+            page.goto(preview + "/")
+            assert page.url == preview + "/", f"preview session lost after runtime login: {page.url}"
+            assert page.locator(".user").inner_text() == "ops2", "preview session was overwritten by runtime login"
+            print(f"PASS session-isolation: {URL} holds ops, {preview} holds ops2")
+            browser.close()
+            return
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(URL + "/login/")

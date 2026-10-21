@@ -72,7 +72,7 @@ def serve(commit, db, environment, port, name):
     logfile = open(log_dir / f"{name}.log", "ab")
     try:
         proc = subprocess.Popen(
-            [str(PYTHON), "manage.py", "runserver", "--noreload", "--insecure", f"127.0.0.1:{port}"],
+            [str(PYTHON), str(ROOT / "scripts" / "run_checkout.py"), "runserver", "--noreload", "--insecure", f"127.0.0.1:{port}"],
             cwd=path, env=child_env(commit, db, environment, name), stdout=logfile, stderr=subprocess.STDOUT,
             start_new_session=True,
         )
