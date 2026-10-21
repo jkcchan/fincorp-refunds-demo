@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from django.conf import settings
 from django.db import transaction
+from .customer_demo import identify
 from .models import Change, Event, Job, Review
 from .policy import git
 from .provider import mode
@@ -42,10 +43,20 @@ def triage(change):
         change.save()
         event(change, "triage", "Needs information from reporter; no agent job created.")
         return
-    if any(term in text for term in ("approval permission", "weaken approval", "skip approval", "remove approval", "bypass approval")):
+    sensitive = any(term in text for term in ("approval permission", "weaken approval", "skip approval", "remove approval", "bypass approval"))
+    scenario = "" if sensitive else identify(change)
+    if sensitive:
         change.type, change.risk, change.owner = "sensitive", "owner", "Refund policy owner + tools admin"
         change.urgency = "high"
         change.acceptance = "Policy owner specifies authority; independent permission and audit checks remain in force."
+    elif scenario == "case_link":
+        change.safe_context = {**change.safe_context, "sample_scenario": scenario}
+        change.type = "bug"
+        change.acceptance = "On RF-1009, Copy case link copies the actual case URL and confirms success without changing refund state."
+    elif scenario == "queue_intro":
+        change.safe_context = {**change.safe_context, "sample_scenario": scenario}
+        change.type = "copy"
+        change.acceptance = "Correct only the existing queue description string and preserve HTML escaping."
     elif "typo" in text or "label" in text:
         change.type = "copy"
         change.acceptance = "Correct the reported display string without changing routes, logic, or escaping."
@@ -65,7 +76,10 @@ def triage(change):
     change.packet = packet(change)
     change.save()
     event(change, "triage", change.triage + f" Base {change.base}; mode {change.mode}.")
-    if change.mode == "live":
+    if scenario:
+        event(change, "sample task queued", f"Recorded fixture task {scenario}; no Devin session or generated patch.", source="fixture")
+        job(change, "sample_fixture")
+    elif change.mode == "live":
         job(change, "launch")
 
 

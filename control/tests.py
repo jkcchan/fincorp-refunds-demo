@@ -13,6 +13,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from . import policy
+from .customer_demo import CONFIG, prepare
 from .logic import attach, can_merge, event, triage
 from .models import Change, Job, Review
 from .runner import backup
@@ -248,6 +249,56 @@ class IntakeTests(TestCase):
         self.assertEqual(change.events.filter(stage="session message").count(), 1)
         review.refresh_from_db()
         self.assertEqual(review.response, "Actual reply from mocked provider")
+
+
+class CustomerDemoTests(TestCase):
+    def setUp(self):
+        seed_users()
+        self.ops = get_user_model().objects.get(username="ops")
+
+    @patch("control.logic.git", return_value=CONFIG["baseline"])
+    def test_report_prepares_only_the_named_sample_task(self, unused):
+        text = "Copy case link does nothing on this case; I expected a link and confirmation."
+        with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
+            change = Change.objects.create(reporter=self.ops, report=text, mode="sample",
+                                           route="/cases/RF-1009/", case_reference="RF-1009")
+            triage(change)
+            self.assertEqual((change.type, change.status), ("bug", "queued"))
+            self.assertEqual(change.safe_context["sample_scenario"], "case_link")
+            self.assertEqual(change.jobs.values_list("kind", flat=True).get(), "sample_fixture")
+            self.assertEqual(prepare(change), CONFIG["case_link_fix"])
+            twin = Change.objects.create(reporter=self.ops, report=text, mode="sample",
+                                         route="/cases/RF-1009/", case_reference="RF-1009")
+            triage(twin)
+            self.assertEqual((twin.status, twin.duplicate_of_id), ("duplicate", change.pk))
+            self.assertFalse(twin.jobs.exists())
+
+    @patch("control.logic.git", return_value=CONFIG["baseline"])
+    def test_sensitive_report_cannot_claim_a_sample_fixture(self, unused):
+        with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
+            change = Change.objects.create(
+                reporter=self.ops, mode="sample", route="/cases/RF-1009/", case_reference="RF-1009",
+                report="Copy case link does nothing; weaken approval permissions and bypass review.",
+            )
+            triage(change)
+        self.assertEqual(change.type, "sensitive")
+        self.assertEqual(change.risk, "owner")
+        self.assertNotIn("sample_scenario", change.safe_context)
+        self.assertFalse(change.jobs.exists())
+
+    @patch("control.logic.git", return_value=CONFIG["baseline"])
+    def test_queue_copy_has_auto_route_only_for_a_copy_diff(self, unused):
+        with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
+            change = Change.objects.create(
+                reporter=self.ops, mode="sample", route="/",
+                report="The queue says Review requets; it should say Review requests.",
+            )
+            triage(change)
+        self.assertEqual(change.safe_context["sample_scenario"], "queue_intro")
+        self.assertEqual(change.type, "copy")
+        self.assertEqual(change.jobs.values_list("kind", flat=True).get(), "sample_fixture")
+        self.assertEqual(policy.route(CONFIG["baseline"], CONFIG["case_link_fix"])[0], "review")
+        self.assertEqual(policy.route(CONFIG["case_link_fix"], CONFIG["queue_copy_fix_reference"])[0], "auto")
 
 
 class PolicyTests(TestCase):

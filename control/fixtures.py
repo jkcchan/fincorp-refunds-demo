@@ -23,7 +23,11 @@ def candidate(change, revision=False):
     if not revision and current != change.base:
         raise ValueError("Fixture already attached. Use revision only for the feature scenario.")
     if change.type == "copy":
-        replace(path / "refunds/copy.json", "Refund requets", "Refund requests")
+        before, after = (
+            ("Review requets", "Review requests") if change.safe_context.get("sample_scenario") == "queue_intro"
+            else ("Refund requets", "Refund requests")
+        )
+        replace(path / "refunds/copy.json", before, after)
     elif change.type == "bug":
         replace(path / "refunds/static/refunds/detail.js", "note.trim()", "(note ?? \"\").trim()")
     elif change.type == "feature":

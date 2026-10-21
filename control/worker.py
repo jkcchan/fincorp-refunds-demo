@@ -6,6 +6,7 @@ from django.utils import timezone
 from pathlib import Path
 from django.conf import settings
 from django.db import IntegrityError
+from .customer_demo import CHECKS, prepare
 from .logic import event, job, packet, triage
 from .models import Change, Event, Incident, Job, Review
 from .policy import route
@@ -112,7 +113,15 @@ def poll_sessions():
 
 def handle(item):
     change = Change.objects.get(pk=item.change_id)
-    if item.kind == "launch":
+    if item.kind == "sample_fixture":
+        if change.mode != "sample" or change.safe_context.get("sample_scenario") not in CHECKS:
+            raise ValueError("Only a named sample task can attach a replay fixture.")
+        head = prepare(change)
+        from .logic import attach
+        attach(change, head)
+        event(change, "sample fixture", f"Local candidate commit {head}; replay of a prepared task, NOT Devin output.",
+              actor="sample replay", source="fixture")
+    elif item.kind == "launch":
         if change.session_id or change.create_uncertain:
             raise ValueError("Creation already attempted or uncertain. Reconcile actual session ID before retrying.")
         repo = os.getenv("FINCORP_REPO_NAME", "")
@@ -167,10 +176,16 @@ def handle(item):
         change.check_result = "running"
         change.save()
         event(change, "policy", f"{risk}: {reason}; evaluated actual diff {change.base}..{change.head}")
-        if change.type == "bug":
+        sample_scenario = change.safe_context.get("sample_scenario") if change.mode == "sample" else None
+        if sample_scenario and sample_scenario not in CHECKS:
+            raise ValueError("Unknown sample check scenario.")
+        if sample_scenario or change.type == "bug":
+            if sample_scenario and runtime_state()["commit"] != change.base:
+                raise ValueError("Runtime revision changed before baseline reproduction; refresh the candidate.")
             actual_runtime = os.getenv("FINCORP_RUNTIME_URL", "http://127.0.0.1:8001")
             repro = subprocess.run(
-                [str(PYTHON), str(ROOT / "trusted_checks/browser.py"), actual_runtime, "crash-expected"],
+                [str(PYTHON), str(ROOT / "trusted_checks/browser.py"), actual_runtime,
+                 CHECKS[sample_scenario][0] if sample_scenario else "crash-expected"],
                 cwd=ROOT, capture_output=True, text=True, timeout=75,
             )
             if repro.returncode:
@@ -179,7 +194,10 @@ def handle(item):
                   evidence=f"/changes/{change.pk}/")
         url = preview(change)
         # Browser regression comes from the trusted controller checkout, not the candidate.
-        scenario = "bug" if change.type == "bug" else ("feature-revision" if change.type == "feature" and change.reviews.filter(kind="changes").exists() else "feature" if change.type == "feature" else "copy" if change.type == "copy" else "smoke")
+        scenario = CHECKS[sample_scenario][1] if sample_scenario else (
+            "bug" if change.type == "bug" else (
+                "feature-revision" if change.type == "feature" and change.reviews.filter(kind="changes").exists()
+                else "feature" if change.type == "feature" else "copy" if change.type == "copy" else "smoke"))
         result = subprocess.run([str(PYTHON), str(ROOT / "trusted_checks/browser.py"), url, scenario],
                                 cwd=ROOT, capture_output=True, text=True, timeout=80)
         if change.head != Change.objects.get(pk=change.pk).head:
@@ -191,6 +209,10 @@ def handle(item):
         change.status = "ready" if result.returncode == 0 else "blocked"
         change.save()
         event(change, "independent checks", f"{change.check_result} on {change.head}: {change.check_output[-1200:]}", source="trusted checks")
+        if sample_scenario and change.check_result == "passed":
+            event(change, "review gate" if risk != "auto" else "automatic route",
+                  "Frontend behavior requires tools-admin approval." if risk != "auto" else "Copy-only diff eligible for automatic merge after independent checks.",
+                  source="trusted policy", evidence=f"/changes/{change.pk}/")
         if change.check_result == "passed" and risk == "auto" and not change.reviews.exists() and change.source != "eval fixture":
             job(change, "merge", change.head)
     elif item.kind == "merge":

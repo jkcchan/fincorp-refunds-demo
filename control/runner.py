@@ -104,7 +104,9 @@ def stop(pid):
 
 
 def preview(change):
-    port = 8200 + change.pk
+    port = int(os.getenv("FINCORP_PREVIEW_PORT_BASE", "8200")) + change.pk
+    if not 1024 <= port <= 65535:
+        raise ValueError("Preview port must be in the local unprivileged range.")
     url = f"http://127.0.0.1:{port}"
     if change.preview_url and probe(url, change.head):
         return url

@@ -58,6 +58,12 @@ def new(request):
 @login_required
 def detail(request, pk):
     change = get_object_or_404(Change.objects.select_related("reporter", "duplicate_of"), pk=pk)
+    scenario = change.safe_context.get("sample_scenario") if change.mode == "sample" else None
+    original = os.getenv("FINCORP_ORIGINAL_URL", "") if scenario else ""
+    before_url = ""
+    if original:
+        path = f"/cases/{change.case_reference}/" if scenario == "case_link" else "/"
+        before_url = original.rstrip("/") + path
     diff = ""
     if change.base and change.head:
         try:
@@ -72,6 +78,7 @@ def detail(request, pk):
         "reviews": change.reviews.select_related("actor"),
         "merge_gate": can_merge(change)[1] if change.head else "No candidate attached.",
         "followups": [(r, followup(r)) for r in change.reviews.filter(delivery__in=["pending", "failed", "uncertain"])] if admin else [],
+        "before_url": before_url,
     })
 
 
