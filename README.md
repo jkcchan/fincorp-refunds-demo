@@ -51,6 +51,12 @@ Accounts are ordinary demo passwords, not SSO. Bind servers to loopback only. Ne
 
 ## Modes and demo runbook
 
+For a customer-facing before/after walkthrough that does not reset this
+checkout, follow [the isolated customer demo](docs/customer-demo.md). It uses
+RF-1009, a genuinely inert case-link button on a named baseline, a checked
+frontend fix awaiting human review, and a separate copy-only automatic
+release. Both are explicitly labeled local sample fixtures, not Devin runs.
+
 `manual` is the default and is usable with no external integration. For a real handoff, paste the complete packet in the change detail into Devin Cloud, **after** providing Devin with an authorized fetchable repository at the packet's exact base commit. Attach only a real session ID/URL and a real locally fetched candidate commit. Follow-up packets are copyable; paste the actual response back. The worker checks/merges/releases that commit under the same gates. Without a fetchable remote or approved source handoff, local workspace paths and `localhost` URLs are not available to Devin. If unrelated commits have landed since intake, **Refresh stale base** and obtain a new candidate before checking or merging.
 
 For **explicit sample replay**, stop/restart the console, worker and runtime with `export FINCORP_MODE=sample`. Submit these independent reports; a tools admin presses **Attach known fixture commit**. Each locally authored fixture is a genuine Git commit in an isolated worktree, explicitly labeled *not a Devin run*. Wait for worker checks; refreshing/polling is automatic. Do not use replay to claim agent speed or success.
