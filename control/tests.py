@@ -2,6 +2,7 @@ import json
 import sqlite3
 import subprocess
 import signal
+from django.utils import timezone
 import tempfile
 from pathlib import Path
 from contextlib import nullcontext
@@ -161,6 +162,58 @@ class IntakeTests(TestCase):
             with self.assertRaisesMessage(ValueError, "Merge conflict"):
                 merge(change)
         self.assertEqual(change.merged_commit, "")
+
+    def test_followup_targets_same_session_and_deduplicates_retries(self):
+        from .worker import handle
+        change = Change.objects.create(reporter=self.ops, report="A review question", mode="live",
+                                       session_id="devin-example", session_url="https://app.devin.ai/sessions/example")
+        review = Review.objects.create(change=change, actor=self.admin, kind="question", message="Does this alter approver permissions?")
+        work = Job.objects.create(change=change, kind="feedback", key=f"{change.run_id}:feedback:{review.pk}")
+        with patch("control.worker.Devin") as api:
+            handle(work)
+            handle(work)
+            api.return_value.send.assert_called_once()
+            self.assertEqual(api.return_value.send.call_args.args[0], "devin-example")
+        review.refresh_from_db()
+        self.assertEqual(review.delivery, "sent")
+        self.assertIsNotNone(review.sent_at)
+
+    def test_ambiguous_creation_is_not_retried(self):
+        from .provider import ProviderError
+        from .worker import handle
+        change = Change.objects.create(reporter=self.ops, report="A live issue", mode="live", run_id="a" * 32, base="a" * 40)
+        work = Job.objects.create(change=change, kind="launch", key="create-one")
+        with patch.dict("os.environ", {"FINCORP_REPO_NAME": "authorized/repo", "FINCORP_REPO_URL": "https://github.com/authorized/repo"}), \
+                patch("control.worker.subprocess.run", return_value=type("Result", (), {"returncode": 0, "stdout": "a" * 40 + "\trefs/heads/demo"})()), \
+                patch("control.worker.Devin") as api:
+            api.return_value.create.side_effect = ProviderError("transport failure")
+            with self.assertRaises(ProviderError):
+                handle(work)
+            with self.assertRaisesMessage(ValueError, "uncertain"):
+                handle(work)
+            api.return_value.create.assert_called_once()
+        change.refresh_from_db()
+        self.assertTrue(change.create_uncertain)
+        self.assertFalse(change.session_id)
+
+    @patch("control.worker.mode", return_value="live")
+    def test_repeated_provider_message_event_is_persisted_once(self, unused):
+        from .worker import poll_sessions
+        change = Change.objects.create(reporter=self.ops, report="Poll test", mode="live", session_id="devin-poll")
+        review = Review.objects.create(change=change, actor=self.admin, kind="question", message="Question",
+                                       delivery="sent", sent_at=timezone.now())
+        future = timezone.now().timestamp() + 3
+        with patch("control.worker.Devin") as api:
+            api.return_value.status.return_value = {"status": "running", "acus_consumed": 3}
+            api.return_value.messages.return_value = {"items": [
+                {"event_id": "message-1", "source": "devin", "message": "Actual reply from mocked provider",
+                 "created_at": future},
+            ], "has_next_page": False, "end_cursor": "next"}
+            poll_sessions()
+            poll_sessions()
+        self.assertEqual(change.events.filter(stage="session message").count(), 1)
+        review.refresh_from_db()
+        self.assertEqual(review.response, "Actual reply from mocked provider")
 
 
 class PolicyTests(TestCase):

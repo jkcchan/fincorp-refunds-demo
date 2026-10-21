@@ -11,7 +11,7 @@ import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 from django.conf import settings
-from .policy import git
+from .policy import ROOT as RELEASE_REPO, git
 
 ROOT = settings.BASE_DIR
 RUNS = ROOT / ".runs"
@@ -164,12 +164,13 @@ def merge(change):
         if git("status", "--porcelain", "--untracked-files=no"):
             raise ValueError("Controller checkout has local edits; cannot merge safely.")
         result = subprocess.run(
-            ["git", "-C", str(ROOT), "-c", "user.name=FinCorp Demo", "-c", "user.email=demo@invalid.example",
+            ["git", "-C", str(RELEASE_REPO), "-c", "user.name=FinCorp Demo", "-c", "user.email=demo@invalid.example",
              "merge", "--no-ff", "--no-edit", change.head], capture_output=True, text=True,
         )
         if result.returncode:
-            if (ROOT / ".git/MERGE_HEAD").exists():
-                subprocess.run(["git", "-C", str(ROOT), "merge", "--abort"], check=True, capture_output=True)
+            merge_head = git("rev-parse", "--git-path", "MERGE_HEAD")
+            if Path(merge_head).exists():
+                subprocess.run(["git", "-C", str(RELEASE_REPO), "merge", "--abort"], check=True, capture_output=True)
             raise ValueError("Merge conflict or protection failure: " + result.stderr[-1000:])
         merged = git("rev-parse", "HEAD")
         if git("merge-base", change.head, merged) != change.head:

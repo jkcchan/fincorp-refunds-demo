@@ -46,6 +46,8 @@ class Change(models.Model):
     session_url = models.URLField(blank=True)
     provider_status = models.CharField(max_length=40, blank=True)
     provider_cursor = models.CharField(max_length=200, blank=True)
+    usage_cost = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    acus_consumed = models.PositiveIntegerField(null=True, blank=True)
     create_uncertain = models.BooleanField(default=False)
     packet = models.TextField(blank=True)
     merged_commit = models.CharField(max_length=64, blank=True)
@@ -91,6 +93,7 @@ class Review(models.Model):
     response = models.TextField(blank=True)
     base = models.CharField(max_length=64, blank=True)
     head = models.CharField(max_length=64, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -16,6 +16,7 @@ from django.views.decorators.http import require_POST
 from .forms import AssignForm, CaseForm, NoteForm
 from .models import AuditEvent, Case, Payment, RuntimeError
 from .services import DecisionError, decide, record, snapshot
+from .middleware import sanitize
 
 
 def copy_strings():
@@ -132,12 +133,6 @@ def seed_legacy(request):
         record(case, request.user, "demo_seed_legacy", {})
     messages.success(request, "Demo-only legacy row is ready. Open its detail to reproduce the browser error.")
     return redirect("refunds:detail", reference=case.reference)
-
-
-def sanitize(text):
-    text = str(text)[:6000]
-    text = re.sub(r"(?i)(bearer|password|cookie|api[_-]?key|secret)[=: ]+[^\\s,;]+", r"\1=[REDACTED]", text)
-    return text
 
 
 @require_POST

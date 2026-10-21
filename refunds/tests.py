@@ -104,3 +104,26 @@ class RefundFlowTests(TransactionTestCase):
         self.client.force_login(self.admin)
         self.assertEqual(self.client.post(reverse("refunds:seed_legacy")).status_code, 302)
         self.assertIsNone(Case.objects.get(reference="RF-LEGACY-NULL").note)
+
+    def test_untrusted_case_content_escaped_and_telemetry_sanitized(self):
+        import json
+        from .models import RuntimeError
+        from .middleware import sanitize
+        case = Case.objects.get(reference="RF-1001")
+        case.reason = "<script>alert(1)</script>"
+        case.save()
+        self.client.force_login(self.ops)
+        detail = self.client.get(reverse("refunds:detail", args=[case.reference]))
+        self.assertContains(detail, "&lt;script&gt;alert(1)&lt;/script&gt;")
+        response = self.client.post(reverse("refunds:telemetry"), data=json.dumps({
+            "route": "/cases/RF-1001/?token=not-stored", "message": "Bearer private-token",
+            "stack": "TypeError: cookie=abc123 at detail.js:3", "case_reference": "RF-1001",
+            "correlation_id": "a" * 32,
+        }), content_type="application/json")
+        self.assertEqual(response.status_code, 201)
+        error = RuntimeError.objects.get(pk=response.json()["recorded"])
+        self.assertEqual(error.route, "/cases/RF-1001/")
+        self.assertNotIn("private-token", error.message)
+        self.assertNotIn("abc123", error.stack)
+        self.assertNotIn("not-stored", error.log_excerpt)
+        self.assertNotIn("secret123", sanitize("password=secret123"))

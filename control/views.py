@@ -13,16 +13,19 @@ from django.views.decorators.http import require_POST
 from .logic import attach, can_merge, event, followup, invalidate, job, packet, triage
 from .models import Change, Review
 from .policy import git
-from .provider import mode
+from .provider import ProviderError, mode
 
 
 @login_required
 def changes(request):
     status = request.GET.get("status", "")
     items = Change.objects.select_related("reporter", "duplicate_of")
+    show_evals = request.GET.get("show_evals") == "1"
+    if not show_evals:
+        items = items.exclude(source="eval fixture")
     if status in dict(Change.STATUSES):
         items = items.filter(status=status)
-    return render(request, "control/list.html", {"items": items, "status": status, "statuses": Change.STATUSES})
+    return render(request, "control/list.html", {"items": items, "status": status, "statuses": Change.STATUSES, "show_evals": show_evals})
 
 
 @login_required
@@ -68,7 +71,7 @@ def detail(request, pk):
         "events": change.events.all(), "incidents": change.incidents.all() if admin else [],
         "reviews": change.reviews.select_related("actor"),
         "merge_gate": can_merge(change)[1] if change.head else "No candidate attached.",
-        "followups": [(r, followup(r)) for r in change.reviews.filter(delivery__in=["pending", "failed"])] if admin else [],
+        "followups": [(r, followup(r)) for r in change.reviews.filter(delivery__in=["pending", "failed", "uncertain"])] if admin else [],
     })
 
 
@@ -101,6 +104,46 @@ def action(request, pk):
     try:
         if action_name == "attach":
             attach(change, request.POST.get("head", "").strip(), request.POST.get("session_id", "").strip(), request.POST.get("session_url", "").strip())
+        elif action_name == "reconcile_session":
+            if change.mode != "live" or not change.create_uncertain:
+                raise ValueError("No uncertain live creation to reconcile.")
+            session_id = request.POST.get("session_id", "").strip()
+            if not re.fullmatch(r"devin-[A-Za-z0-9_-]+", session_id):
+                raise ValueError("Enter the actual Devin session ID from Cloud.")
+            from .provider import Devin
+            actual = Devin().status(session_id)
+            if actual.get("session_id") != session_id or actual.get("title") != f"FinCorp change #{change.pk}" or "fincorp-" + change.run_id not in actual.get("tags", []):
+                raise ValueError("Session does not match this work item's title and run tag.")
+            change.session_id = session_id
+            change.session_url = actual.get("url", "")
+            change.provider_status = actual.get("status", "")
+            change.create_uncertain = False
+            change.status = "working"
+            change.save()
+            event(change, "session reconciled", f"Verified existing Devin session {session_id}; no duplicate create.", actor=request.user.username, source="devin")
+        elif action_name == "reconcile_feedback":
+            from .provider import Devin
+            review = get_object_or_404(Review, pk=request.POST.get("review_id"), change=change)
+            if change.mode != "live" or review.delivery != "uncertain" or not change.session_id:
+                raise ValueError("No ambiguous live feedback delivery to reconcile.")
+            api = Devin()
+            cursor = ""
+            found = False
+            for _ in range(20):
+                messages_page = api.messages(change.session_id, cursor)
+                found = any(m.get("message") == followup(review) and m.get("source") != "devin" for m in messages_page.get("items", []))
+                if found or not messages_page.get("has_next_page"):
+                    break
+                cursor = messages_page.get("end_cursor", "")
+                if not cursor:
+                    break
+            if not found:
+                raise ValueError("No matching sent message was verified. Leave delivery uncertain; do not blindly resend.")
+            from django.utils import timezone
+            review.delivery = "sent"
+            review.sent_at = timezone.now()
+            review.save()
+            event(change, "feedback reconciled", f"Confirmed matching message for review {review.pk} in actual session.", actor=request.user.username, source="devin")
         elif action_name == "fixture":
             if change.mode != "sample" or change.status in ("needs_info", "duplicate", "released"):
                 raise ValueError("Fixtures require an active sample-replay item.")
@@ -189,7 +232,7 @@ def action(request, pk):
         else:
             raise ValueError("Unknown action.")
         messages.success(request, "Change updated.")
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, ProviderError) as exc:
         messages.error(request, str(exc)[:300])
     return redirect("control:detail", pk=pk)
 

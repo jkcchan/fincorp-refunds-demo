@@ -40,9 +40,9 @@ class Devin:
         except (urllib.error.URLError, TimeoutError) as exc:
             raise ProviderError(f"Devin API transport failure: {type(exc).__name__}") from exc
 
-    def create(self, prompt, title, repo):
+    def create(self, prompt, title, repo, tag):
         # No bypass_approval or secret_ids; repo access and org policy must already be configured.
-        return self.request("POST", data={"prompt": prompt, "title": title, "repos": [repo], "resumable": True})
+        return self.request("POST", data={"prompt": prompt, "title": title, "repos": [repo], "resumable": True, "tags": [tag]})
 
     def status(self, session_id):
         return self.request("GET", "/" + urllib.parse.quote(session_id))

@@ -3,7 +3,17 @@ import subprocess
 from pathlib import Path
 from django.conf import settings
 
-ROOT = settings.BASE_DIR
+# The controller can remain at the current trusted source while demo merges
+# happen in a separate checkout rooted at the named vulnerable baseline.
+ROOT = settings.BASE_DIR / ".runs/release-tree"
+active = settings.BASE_DIR / ".runs/active-release.json"
+if active.exists():
+    selected = Path(json.loads(active.read_text())["path"]).resolve()
+    if not selected.is_relative_to((settings.BASE_DIR / ".runs").resolve()) or not (selected / ".git").exists():
+        raise RuntimeError("Active release worktree must be under .runs and exist.")
+    ROOT = selected
+if not (ROOT / ".git").exists():
+    ROOT = settings.BASE_DIR
 COPY = "refunds/copy.json"
 HIGH_PREFIXES = (
     "refunds/models.py", "refunds/services.py", "refunds/forms.py", "refunds/migrations/",

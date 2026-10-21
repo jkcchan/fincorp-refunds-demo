@@ -2,6 +2,7 @@
 {% block title %}Change console{% endblock %}
 {% block content %}
 <div class="pagehead"><div><h1>Change console</h1><p>Requests, candidate revisions, review, and release in one place.</p></div><a class="button" href="{% url 'control:new' %}">Report an issue / Request a change</a></div>
+<p class="small">{% if show_evals %}<a href="{% url 'control:list' %}">Hide eval fixture trials</a>{% else %}<a href="?show_evals=1">Show eval fixture trials</a>{% endif %}</p>
 <form method="get" class="card filter-row"><div><label for="status">Stage</label><select id="status" name="status"><option value="">All work</option>{% for value,label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><button>Filter</button></form>
 <section class="card tablewrap"><table><thead><tr><th>Request</th><th>Source / mode</th><th>Agent / session</th><th>Enforced risk</th><th>Stage</th><th>Checks</th><th>Preview</th><th>Final result</th></tr></thead><tbody>
 {% for item in items %}<tr><td><a href="{% url 'control:detail' item.pk %}"><strong>#{{ item.pk }} {{ item.report|truncatechars:58 }}</strong></a><div class="muted small">{{ item.created_at|date:"M j, H:i" }} · {{ item.reporter.username }}</div></td>

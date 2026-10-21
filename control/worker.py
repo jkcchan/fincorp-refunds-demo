@@ -2,6 +2,7 @@ import os
 import sqlite3
 import subprocess
 import time
+from django.utils import timezone
 from pathlib import Path
 from django.conf import settings
 from django.db import IntegrityError
@@ -70,10 +71,16 @@ def poll_sessions():
         try:
             status = provider.status(change.session_id)
             value = status.get("status", "")
+            updated_usage = status.get("on_demand_usage")
+            if isinstance(updated_usage, (int, float)) and updated_usage >= 0:
+                change.usage_cost = updated_usage
+            acus = status.get("acus_consumed")
+            if isinstance(acus, int) and acus >= 0:
+                change.acus_consumed = acus
             if value != change.provider_status:
                 change.provider_status = value
-                change.save()
                 event(change, "agent status", value, source="devin")
+            change.save()
             # Cursor + unique event ID make repeated polls idempotent across restarts.
             for _ in range(10):
                 result = provider.messages(change.session_id, change.provider_cursor)
@@ -89,7 +96,10 @@ def poll_sessions():
                         })
                     if created and message.get("source") == "devin":
                         unanswered = change.reviews.filter(delivery="sent", response="").first()
-                        if unanswered:
+                        created_at = message.get("created_at")
+                        if isinstance(created_at, (int, float)) and created_at > 1e12:
+                            created_at /= 1000
+                        if unanswered and unanswered.sent_at and isinstance(created_at, (int, float)) and created_at >= unanswered.sent_at.timestamp():
                             unanswered.response = str(message.get("message", ""))[:4000]
                             unanswered.save()
                 change.provider_cursor = result.get("end_cursor") or change.provider_cursor
@@ -106,15 +116,24 @@ def handle(item):
         if change.session_id or change.create_uncertain:
             raise ValueError("Creation already attempted or uncertain. Reconcile actual session ID before retrying.")
         repo = os.getenv("FINCORP_REPO_NAME", "")
-        if not repo or not os.getenv("FINCORP_REPO_URL", ""):
+        repo_url = os.getenv("FINCORP_REPO_URL", "")
+        if not repo or not repo_url:
             raise ValueError("Authorized fetchable repository is not configured; no session created.")
+        try:
+            refs = subprocess.run(
+                ["git", "ls-remote", "--heads", "--tags", repo_url], capture_output=True, text=True, timeout=20,
+            )
+        except subprocess.TimeoutExpired:
+            raise ValueError("Authorized repository ref check timed out; no session created.")
+        if refs.returncode or not any(line.split()[0] == change.base for line in refs.stdout.splitlines() if line.split()):
+            raise ValueError("Exact base SHA is not an advertised authorized branch/tag tip; no session created.")
         change.create_uncertain = True
         change.save()
         event(change, "provider request", f"Creating live session for run {change.run_id}; reconciliation required if response is ambiguous.", source="devin")
         provider = Devin()
         template = (ROOT / "prompts/triage-v1.txt").read_text()
         triage_prompt = template.format(report=change.report.replace("<", "\\u003c"), context=change.packet)
-        result = provider.create(triage_prompt + "\n\n" + change.packet, f"FinCorp change #{change.pk}", repo)
+        result = provider.create(triage_prompt + "\n\n" + change.packet, f"FinCorp change #{change.pk}", repo, "fincorp-" + change.run_id)
         if not result.get("session_id", "").startswith("devin-") or not result.get("url", "").startswith("https://"):
             raise ValueError("Ambiguous create response; reconcile before retry.")
         change.session_id = result["session_id"]
@@ -128,9 +147,16 @@ def handle(item):
         review = Review.objects.get(pk=int(item.key.rsplit(":", 1)[-1]))
         if not change.session_id:
             raise ValueError("No live session; attach a real session or use manual handoff.")
+        if review.delivery == "sent":
+            return
+        if review.delivery == "uncertain":
+            raise ValueError("Feedback send is ambiguous; reconcile session messages before retrying.")
         from .logic import followup
+        review.delivery = "uncertain"
+        review.save()
         Devin().send(change.session_id, followup(review))
         review.delivery = "sent"
+        review.sent_at = timezone.now()
         review.save()
         event(change, "feedback delivered", f"Sent review {review.pk} to {change.session_id}", source="devin")
     elif item.kind == "checks":
@@ -165,7 +191,7 @@ def handle(item):
         change.status = "ready" if result.returncode == 0 else "blocked"
         change.save()
         event(change, "independent checks", f"{change.check_result} on {change.head}: {change.check_output[-1200:]}", source="trusted checks")
-        if change.check_result == "passed" and risk == "auto" and not change.reviews.exists():
+        if change.check_result == "passed" and risk == "auto" and not change.reviews.exists() and change.source != "eval fixture":
             job(change, "merge", change.head)
     elif item.kind == "merge":
         if change.merged_commit:
@@ -196,7 +222,7 @@ def tick():
         poll_sessions()
     except ProviderError:
         pass
-    for item in Job.objects.filter(status="pending").order_by("id")[:10]:
+    for item in Job.objects.filter(status="pending").exclude(change__source="eval fixture").order_by("id")[:10]:
         item.status = "running"
         item.attempts += 1
         item.save()
@@ -212,6 +238,6 @@ def tick():
                 change.status = "blocked" if item.kind != "release" else "merged"
                 change.save()
             if item.kind == "feedback":
-                Review.objects.filter(pk=int(item.key.rsplit(":", 1)[-1])).update(delivery="failed")
+                Review.objects.filter(pk=int(item.key.rsplit(":", 1)[-1]), delivery="pending").update(delivery="failed")
             event(change, "job failed", f"{item.kind}: {item.last_error}", source="worker")
         item.save()

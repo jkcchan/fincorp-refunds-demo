@@ -3,7 +3,9 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,6 +33,16 @@ with transaction.atomic():
         case.delete()
     seed_users()
     seed_refunds()
-from control.runner import select_runtime
-select_runtime(json.loads(baseline.read_text())["commit"])
-print("Named legacy row removed and baseline selected. Unrelated cases, control history and Git commits preserved.")
+selected = json.loads(baseline.read_text())["commit"]
+new_tree = ROOT / ".runs/release-cycles" / ("cycle-" + uuid.uuid4().hex[:12])
+new_tree.parent.mkdir(parents=True, exist_ok=True)
+subprocess.run(["git", "-C", str(ROOT), "worktree", "add", "--detach", str(new_tree), selected], check=True)
+active = ROOT / ".runs/active-release.json"
+temp = active.with_suffix(".tmp")
+temp.write_text(json.dumps({"path": str(new_tree)}))
+os.replace(temp, active)
+runtime = ROOT / ".runs/runtime.json"
+temp = runtime.with_suffix(".tmp")
+temp.write_text(json.dumps({"commit": selected}))
+os.replace(temp, runtime)
+print("Named legacy row removed and baseline selected in a NEW release worktree. Previous worktrees, unrelated cases, control history and Git commits preserved. Restart the controller and worker after reset.")
