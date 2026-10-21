@@ -28,15 +28,20 @@ def queue(request):
     query = request.GET.get("q", "").strip()[:100]
     status = request.GET.get("status", "")
     currency = request.GET.get("currency", "")
+    assignee_filter = request.GET.get("assignee", "")
     if query:
         cases = cases.filter(Q(reference__icontains=query) | Q(payment__reference__icontains=query))
     if status in dict(Case.STATUSES):
         cases = cases.filter(status=status)
     if currency in ("USD", "CAD"):
         cases = cases.filter(payment__currency=currency)
+    if assignee_filter == "mine":
+        cases = cases.filter(assignee=request.user)
+    elif assignee_filter == "unassigned":
+        cases = cases.filter(assignee__isnull=True)
     totals = cases.values("payment__currency").annotate(total=Sum("requested_minor")).order_by("payment__currency")
     return render(request, "refunds/queue.html", {
-        "cases": cases, "query": query, "status": status, "currency": currency, "statuses": Case.STATUSES,
+        "cases": cases, "query": query, "status": status, "currency": currency, "assignee_filter": assignee_filter, "statuses": Case.STATUSES,
         "totals": totals, "copy": copy_strings(),
     })
 
