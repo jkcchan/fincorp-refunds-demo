@@ -39,18 +39,22 @@ If you decide to ship during the demo, click **Approve change** as
 then will :8001 show the fixed behavior. **Approve refund** is unrelated.
 Do not click this until you have finished showing the broken runtime.
 
-## 3. Optional low-risk automatic change
+## 3. Show the recorded automatic copy change
 
-The queue description at :8001 still reads **Review requets and track
-every decision.** After change #1 is released, use the queue's **Report an
-issue / Request a change** link and enter:
+The current queue at :8001 still reads **Review requets and track every
+decision.** Open http://127.0.0.1:8000/changes/2/. This is a **read-only
+recording from a prior isolated sample run**, not the release deployed on
+:8001 right now.
 
-> Queue copy typo: Review requets and track every decision. should read
-> Review requests and track every decision.
+Show the original plain-language typo report, source diff limited to
+`refunds/copy.json`, enforced `auto` route, passing browser checks, and
+the actual **Merged** and **Released** trace events from that earlier
+run. There was no human approval click. The console labels both the row
+and detail page as a prior-cycle recording.
 
-This creates **change #2**. Its browser checks compare the typo on the
-runtime with the corrected preview at :8302. Policy routes the copy-only
-diff to `auto`, so it merges and releases without an approval click. Do
-not claim #2 has already merged in this active console: its earlier
-completed run is preserved separately as rehearsal evidence, not copied
-into this in-review demonstration.
+Compare the live queue at http://127.0.0.1:8001/ (**Review requets**)
+with the recording's working candidate preview at
+http://127.0.0.1:8352/ (**Review requests**). The recorded auto-release
+commit is genuine, but the current runtime intentionally stays on the
+broken baseline so change #1 can remain in review. Do not say #2's
+release is currently deployed at :8001.

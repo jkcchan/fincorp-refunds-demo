@@ -312,6 +312,18 @@ class CustomerDemoTests(TestCase):
         self.assertFalse(change.jobs.exists())
 
     @patch("control.logic.git", return_value=CONFIG["baseline"])
+    def test_prior_recording_does_not_hide_an_active_report(self, unused):
+        text = "The queue says Review requets; it should say Review requests."
+        Change.objects.create(reporter=self.ops, source="recorded sample", mode="sample",
+                              report=text, status="released")
+        with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
+            change = Change.objects.create(reporter=self.ops, report=text, mode="sample", route="/")
+            triage(change)
+        self.assertEqual(change.status, "queued")
+        self.assertEqual(change.safe_context["sample_scenario"], "queue_intro")
+        self.assertEqual(change.jobs.values_list("kind", flat=True).get(), "sample_fixture")
+
+    @patch("control.logic.git", return_value=CONFIG["baseline"])
     def test_queue_copy_queues_a_fixture_separate_from_behavior(self, unused):
         with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):
             change = Change.objects.create(

@@ -106,3 +106,14 @@ change #1 was filed through the refunds UI and is **Ready for review**;
 it has no release or Devin session. The older completed #1/#2 rehearsal
 history remains in `.runs/customer-rehearsal` rather than being
 presented as current release state.
+
+The completed automatic copy change #2 was then imported as a
+**read-only recorded sample** into the active console. Its original
+run ID, head, merge and release commits, check output, jobs and
+timestamped trace were checked against the prior rehearsal and copied
+without creating a new release. The actual diff was reclassified
+`auto` from the local Git commits. Its candidate now runs at :8352
+using a separate synthetic database. Current :8001 still serves
+`6e5ded63d3248592d3c6c68e791a71bd84e1a0d4`, with RF-1009's
+broken button, while change #1 remains Ready for review. No Devin
+session is claimed for either item.

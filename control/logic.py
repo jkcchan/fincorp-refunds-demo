@@ -29,7 +29,7 @@ def job(change, kind, revision=""):
 
 def triage(change):
     text = change.report.lower()
-    existing = Change.objects.filter(report__iexact=change.report.strip()).exclude(pk=change.pk).exclude(status="duplicate").first()
+    existing = Change.objects.filter(report__iexact=change.report.strip()).exclude(pk=change.pk).exclude(status="duplicate").exclude(source="recorded sample").first()
     if existing:
         change.duplicate_of = existing
         change.status = "duplicate"
