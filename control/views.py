@@ -10,7 +10,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
-from .logic import attach, can_merge, event, followup, job, packet, triage
+from .logic import attach, can_merge, event, followup, invalidate, job, packet, triage
 from .models import Change, Review
 from .policy import git
 from .provider import mode
@@ -104,10 +104,30 @@ def action(request, pk):
         elif action_name == "fixture":
             if change.mode != "sample" or change.status in ("needs_info", "duplicate", "released"):
                 raise ValueError("Fixtures require an active sample-replay item.")
+            if not change.head and change.base != git("rev-parse", "HEAD"):
+                previous = change.base
+                change.base = git("rev-parse", "HEAD")
+                change.packet = packet(change)
+                change.save()
+                event(change, "base refreshed", f"Rebased pending fixture from {previous} onto {change.base}; original deployed commit retained.")
             from .fixtures import candidate
             head = candidate(change, revision=request.POST.get("revision") == "1")
             attach(change, head)
             event(change, "sample replay", f"Fixture commit {head}; NOT produced by a Devin session.", source="fixture")
+        elif action_name == "refresh_base":
+            if change.status in ("merged", "released", "duplicate"):
+                raise ValueError("Only unmerged work can refresh its base.")
+            previous = change.base
+            if change.preview_pid:
+                from .runner import stop
+                stop(change.preview_pid)
+            change.base = git("rev-parse", "HEAD")
+            change.head = ""
+            invalidate(change)
+            change.packet = packet(change)
+            change.status = "queued"
+            change.save()
+            event(change, "base refreshed", f"{previous} -> {change.base}; original deployed revision remains in intake. New candidate and checks required.")
         elif action_name in ("question", "changes"):
             content = request.POST.get("message", "").strip()
             if not content:

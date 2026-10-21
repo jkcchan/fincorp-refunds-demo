@@ -1,14 +1,16 @@
 import json
+import sqlite3
 import subprocess
 import tempfile
 from pathlib import Path
+from contextlib import nullcontext
 from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from . import policy
 from .logic import attach, can_merge, event, triage
-from .models import Change, Job
+from .models import Change, Job, Review
 from .runner import backup
 from scripts.seed import seed_users
 
@@ -82,6 +84,66 @@ class IntakeTests(TestCase):
         Job.objects.create(change=change, kind="checks", key="test:checks", status="running")
         Job.objects.filter(status="running").update(status="pending")
         self.assertEqual(Job.objects.get(key="test:checks").status, "pending")
+
+    @patch("control.logic.git", return_value="a" * 40)
+    def test_failed_checks_and_owner_review_binding(self, unused):
+        change = Change.objects.create(reporter=self.ops, report="Alter refund approvals in a sensitive workflow", base="a" * 40,
+                                       head="b" * 40, checked_base="a" * 40, checked_head="b" * 40,
+                                       approved_base="a" * 40, approved_head="b" * 40,
+                                       status="ready", risk="owner", check_result="failed")
+        self.assertFalse(can_merge(change)[0])
+        change.check_result = "passed"
+        self.assertFalse(can_merge(change)[0])
+        owner = get_user_model().objects.get(username="policyowner")
+        Review.objects.create(change=change, actor=owner, kind="owner", message="Reviewed", response="Attested",
+                              delivery="sent", base=change.base, head=change.head)
+        self.assertTrue(can_merge(change)[0])
+        change.head = "c" * 40
+        self.assertFalse(can_merge(change)[0])
+
+    def test_preview_telemetry_is_not_imported_runtime_telemetry(self):
+        from .worker import ingest
+        change = Change.objects.create(reporter=self.ops, report="Preview probe", head="b" * 40, mode="sample")
+        with tempfile.TemporaryDirectory() as folder:
+            file = Path(folder) / "preview.sqlite3"
+            with sqlite3.connect(file) as db:
+                db.execute("""CREATE TABLE refunds_runtimeerror (
+                    id INTEGER PRIMARY KEY, fingerprint TEXT, deployed_commit TEXT, environment TEXT,
+                    message TEXT, route TEXT
+                )""")
+                db.execute("INSERT INTO refunds_runtimeerror VALUES (1, 'old', ?, 'runtime', 'old runtime error', '/')", ("a" * 40,))
+                db.execute("INSERT INTO refunds_runtimeerror VALUES (2, 'new', ?, 'preview', 'actual preview error', '/')", ("b" * 40,))
+            ingest(file, "preview", change)
+            ingest(file, "preview", change)
+        self.assertEqual(change.events.filter(stage="preview error").count(), 1)
+        self.assertNotIn("old runtime", change.events.first().detail)
+
+    def test_failed_health_restores_runtime_selection(self):
+        from .runner import release
+        change = Change.objects.create(reporter=self.ops, report="Release probe", merged_commit="b" * 40)
+        calls = []
+        with patch("control.runner.release_lock", return_value=nullcontext()), \
+                patch("control.runner.runtime_state", return_value={"commit": "a" * 40}), \
+                patch("control.runner.select_runtime", side_effect=calls.append), \
+                patch("control.runner.probe", return_value=False), \
+                patch("control.runner.time.sleep"), \
+                patch("control.logic.event"):
+            with self.assertRaisesMessage(ValueError, "health failed"):
+                release(change)
+        self.assertEqual(calls, ["b" * 40, "a" * 40])
+
+    def test_conflict_does_not_claim_merge(self):
+        from .runner import merge
+        change = Change.objects.create(reporter=self.ops, report="Conflict probe", base="a" * 40, head="b" * 40, risk="review")
+        with tempfile.TemporaryDirectory() as folder, \
+                patch("control.runner.ROOT", Path(folder)), patch("control.runner.release_lock", return_value=nullcontext()), \
+                patch("control.logic.can_merge", return_value=(True, "")), \
+                patch("control.policy.route", return_value=("review", "behavioral")), \
+                patch("control.runner.git", side_effect=lambda *args: "" if args[0] == "status" else change.base), \
+                patch("control.runner.subprocess.run", return_value=type("Result", (), {"returncode": 1, "stderr": "CONFLICT"})()):
+            with self.assertRaisesMessage(ValueError, "Merge conflict"):
+                merge(change)
+        self.assertEqual(change.merged_commit, "")
 
 
 class PolicyTests(TestCase):

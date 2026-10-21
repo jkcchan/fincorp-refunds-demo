@@ -1,6 +1,7 @@
 import fcntl
 import json
 import os
+import secrets
 import signal
 import sqlite3
 import subprocess
@@ -41,7 +42,7 @@ def child_env(commit, db, environment):
         "FINCORP_ENVIRONMENT": environment,
         "FINCORP_MODE": os.getenv("FINCORP_MODE", "manual"),
         "FINCORP_CONTROL_URL": os.getenv("FINCORP_CONTROL_URL", "http://127.0.0.1:8000"),
-        "FINCORP_SECRET_KEY": f"isolated-demo-{environment}-{commit}",
+        "FINCORP_SECRET_KEY": secrets.token_hex(32),
     }
 
 
@@ -134,6 +135,14 @@ def select_runtime(commit):
     os.replace(temp, path)
 
 
+def wait_for_health(url, commit, attempts):
+    for _ in range(attempts):
+        if probe(url, commit):
+            return True
+        time.sleep(.3)
+    return False
+
+
 def merge(change):
     from .logic import can_merge
     from .policy import route
@@ -167,13 +176,10 @@ def release(change):
         previous = runtime_state()["commit"]
         select_runtime(change.merged_commit)
         url = os.getenv("FINCORP_RUNTIME_URL", "http://127.0.0.1:8001")
-        for _ in range(70):
-            if probe(url, change.merged_commit):
-                break
-            time.sleep(.3)
-        else:
+        if not wait_for_health(url, change.merged_commit, 70):
             select_runtime(previous)
-            event(change, "rollback", f"Runtime health failed for {change.merged_commit}; restored selection {previous}.")
+            restored = wait_for_health(url, previous, 20)
+            event(change, "rollback", f"Runtime health failed for {change.merged_commit}; selected {previous}. Restored health: {restored}.")
             raise ValueError("Release health failed; selected previous runtime.")
         # The smoke check observes the actual version and authenticated UI, not just /health/.
         result = subprocess.run(
@@ -182,6 +188,7 @@ def release(change):
         )
         if result.returncode:
             select_runtime(previous)
-            event(change, "rollback", f"Smoke failed: {result.stdout[-800:]} {result.stderr[-800:]}; restored {previous}.")
+            restored = wait_for_health(url, previous, 20)
+            event(change, "rollback", f"Smoke failed: {result.stdout[-800:]} {result.stderr[-800:]}; selected {previous}. Restored health: {restored}.")
             raise ValueError("Release smoke failed; selected previous runtime.")
         return result.stdout[-2500:]

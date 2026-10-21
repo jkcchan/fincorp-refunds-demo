@@ -25,13 +25,20 @@ def ingest(db_path, environment, change=None):
         fingerprint = row["fingerprint"]
         commit = row["deployed_commit"]
         if environment != "runtime":
-            if change:
+            if change and row["environment"] == "preview" and commit == change.head:
                 event(change, "preview error", f"{row['message']} on {row['route']} (no repair enqueue)", source="preview",
                       key=f"preview:{change.run_id}:{row['id']}")
+            continue
+        if row["environment"] != "runtime":
             continue
         if commit != runtime_state()["commit"]:
             continue
         if Incident.objects.filter(fingerprint=fingerprint, environment="runtime", deployed_commit=commit).exists():
+            continue
+        ongoing = Incident.objects.filter(fingerprint=fingerprint, environment="runtime").exclude(change__status="released").first()
+        if ongoing:
+            event(ongoing.change, "recurrence", f"Same captured failure observed at {commit}; linked to existing investigation.",
+                  source="telemetry", key=f"recurrence:{ongoing.change.run_id}:{commit}")
             continue
         report = f"Captured browser crash: {row['message']} on {row['route']}. Preserve the synthetic legacy row, reproduce the browser stack, and fix the failure."
         first = Change.objects.create(
@@ -134,6 +141,16 @@ def handle(item):
         change.check_result = "running"
         change.save()
         event(change, "policy", f"{risk}: {reason}; evaluated actual diff {change.base}..{change.head}")
+        if change.type == "bug":
+            actual_runtime = os.getenv("FINCORP_RUNTIME_URL", "http://127.0.0.1:8001")
+            repro = subprocess.run(
+                [str(PYTHON), str(ROOT / "trusted_checks/browser.py"), actual_runtime, "crash-expected"],
+                cwd=ROOT, capture_output=True, text=True, timeout=75,
+            )
+            if repro.returncode:
+                raise ValueError("Baseline browser failure was not reproduced: " + (repro.stdout + repro.stderr)[-1000:])
+            event(change, "baseline reproduction", repro.stdout[-1000:], source="trusted browser",
+                  evidence=f"/changes/{change.pk}/")
         url = preview(change)
         # Browser regression comes from the trusted controller checkout, not the candidate.
         scenario = "bug" if change.type == "bug" else ("feature-revision" if change.type == "feature" and change.reviews.filter(kind="changes").exists() else "feature" if change.type == "feature" else "copy" if change.type == "copy" else "smoke")
