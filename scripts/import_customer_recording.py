@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,6 +24,13 @@ from control.policy import git, route
 from control.runner import RUNS, RUNTIME_DB, backup, probe, serve
 
 source = ROOT.parent / "customer-rehearsal" / "control.sqlite3"
+
+
+def utc_timestamp(value):
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
 if not source.exists():
     raise SystemExit(f"No prior rehearsal record at {source}.")
 with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True) as db:
@@ -66,7 +74,7 @@ with transaction.atomic():
             merged_commit=merged, released_commit=merged,
         )
         Change.objects.filter(pk=change.pk).update(
-            created_at=original["created_at"], updated_at=original["updated_at"],
+            created_at=utc_timestamp(original["created_at"]), updated_at=utc_timestamp(original["updated_at"]),
         )
         for item in events:
             evidence = item["evidence"]
@@ -77,14 +85,14 @@ with transaction.atomic():
                 stage=item["stage"], detail=item["detail"], evidence=evidence,
                 key=f"recorded:{change.run_id}:{item['id']}",
             )
-            Event.objects.filter(pk=record.pk).update(created_at=item["created_at"])
+            Event.objects.filter(pk=record.pk).update(created_at=utc_timestamp(item["created_at"]))
         for item in jobs:
             record = Job.objects.create(
                 change=change, kind=item["kind"], status=item["status"],
                 attempts=item["attempts"], key=f"recorded:{item['key']}",
                 last_error=item["last_error"],
             )
-            Job.objects.filter(pk=record.pk).update(updated_at=item["updated_at"])
+            Job.objects.filter(pk=record.pk).update(updated_at=utc_timestamp(item["updated_at"]))
         Event.objects.create(
             change=change, stage="recording imported", actor="controller", source="local recording",
             detail=f"Prior-cycle sample release {merged}; current refunds runtime remains at {git('rev-parse', 'HEAD')}. No Devin session.",
