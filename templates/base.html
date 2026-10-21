@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="{% static 'site.css' %}">
   <style>:root{--navy:{{ brand.NAVY }};--teal:{{ brand.TEAL }}}</style>
 </head>
-<body>
+<body class="app-{{ app_role }}">
 <header class="topbar">
   <a class="wordmark" href="/">fin<span>corp</span><small> / {% if app_role == 'refunds' %}refunds{% else %}change console{% endif %}</small></a>
   <nav aria-label="Main navigation">

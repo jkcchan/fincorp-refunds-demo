@@ -19,4 +19,12 @@ form p{margin:0 0 16px}button,.button{background:var(--teal);border:1px solid va
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f7f8;padding:16px;border:1px solid var(--border);border-radius:6px;font:12px/1.5 ui-monospace,SFMono-Regular,monospace;max-height:430px;overflow:auto}
 .preview{width:100%;height:460px;border:1px solid var(--border);background:white;border-radius:6px}.review-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(290px,1fr);gap:20px}
 .copybox{width:100%;min-height:160px;font:12px/1.5 ui-monospace,monospace}.stack{display:grid;gap:12px}.labelled{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted)}.inline-form{display:inline-block}
+.app-control{background:linear-gradient(150deg,#e6eef1 0%,#f5f8f9 52%,#eaf1f2 100%)}
+.app-control .topbar{background:linear-gradient(110deg,var(--navy),#244558);border-bottom:3px solid var(--teal);box-shadow:0 7px 24px #152b4020}
+.app-control .wordmark,.app-control nav a{color:#fff}
+.app-control .wordmark span{color:#76d2c7}
+.app-control .wordmark small,.app-control .user,.app-control .link-button{color:#c7dce1}
+.app-control nav a:hover,.app-control .link-button:hover{color:#fff}
+.app-control .topbar a:focus-visible,.app-control .topbar button:focus-visible{outline-color:#fff}
+.app-control .card{box-shadow:0 7px 26px #152b400a}
 @media(max-width:850px){.grid,.grid.equal,.review-layout{grid-template-columns:1fr}.filter-row{grid-template-columns:1fr 1fr}.topbar{padding:16px 24px}.wordmark small{display:block;margin:0}.shell{padding:22px 15px 60px}}@media(max-width:520px){.filter-row{grid-template-columns:1fr}.card{padding:17px}.kv{grid-template-columns:100px 1fr}nav{gap:10px}}
