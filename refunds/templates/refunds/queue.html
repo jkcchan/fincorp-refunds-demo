@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% load money %}
+{% block title %}Refund queue{% endblock %}
+{% block content %}
+<div class="pagehead"><div><h1>{{ copy.queue_title }}</h1><p>{{ copy.queue_intro }}</p></div>
+{% if perms.refunds.manage_case %}<a class="button" href="{% url 'refunds:new' %}">{{ copy.create_label }}</a>{% endif %}</div>
+<form method="get" class="card filter-row" role="search">
+  <div><label for="q">Case or payment reference</label><input id="q" name="q" value="{{ query }}" placeholder="Search references"></div>
+  <div><label for="status">Status</label><select id="status" name="status"><option value="">All statuses</option>{% for value,label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label for="currency">Currency</label><select id="currency" name="currency"><option value="">All currencies</option><option value="USD" {% if currency == 'USD' %}selected{% endif %}>USD</option><option value="CAD" {% if currency == 'CAD' %}selected{% endif %}>CAD</option></select></div>
+  <button>Apply filters</button>
+</form>
+<section class="card tablewrap"><table><thead><tr><th>Case / payment</th><th>Reason</th><th>Requested</th><th>Age</th><th>Assignee</th><th>Status</th></tr></thead>
+<tbody>{% for case in cases %}<tr><td><a href="{% url 'refunds:detail' case.reference %}"><strong>{{ case.reference }}</strong></a><div class="muted">{{ case.payment.reference }} · {{ case.payment.merchant }}</div></td><td>{{ case.reason }}</td><td class="amount">{{ case.requested_minor|dollars }} {{ case.payment.currency }}</td><td>{{ case.created_at|timesince }} ago</td><td>{{ case.assignee.username|default:"Unassigned" }}</td><td><span class="badge {% if case.status == 'information' %}warn{% elif case.status == 'rejected' %}error{% elif case.status == 'new' %}neutral{% endif %}">{{ case.get_status_display }}</span></td></tr>{% empty %}<tr><td colspan="6">No refund cases match these filters. Try another reference or status.</td></tr>{% endfor %}</tbody></table>
+<p class="stats">Requested in this view: {% for row in totals %}<strong>{{ row.total|dollars }} {{ row.payment__currency }}</strong>{% if not forloop.last %} · {% endif %}{% empty %}none{% endfor %}. Approval reserves balance; it does not transfer funds.</p></section>
+{% if perms.refunds.seed_legacy %}<section class="card"><h2>Demo controls</h2><p>Seed the named vulnerable baseline with a null-note legacy case. This is intentional failure injection.</p>
+<form method="post" action="{% url 'refunds:seed_legacy' %}">{% csrf_token %}<button class="secondary">Seed legacy-data error</button></form></section>{% endif %}
+{% endblock %}

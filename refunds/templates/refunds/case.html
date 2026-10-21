@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% load money static %}
+{% block title %}{{ case.reference }}{% endblock %}
+{% block context_label %} / {{ case.reference }}{% endblock %}
+{% block content %}
+<div class="pagehead"><div><a class="small" href="{% url 'refunds:queue' %}">← Refund queue</a><h1>{{ case.reference }}</h1><p>{{ case.reason }} · {{ case.payment.merchant }}</p></div><span class="badge {% if case.status == 'information' %}warn{% elif case.status == 'rejected' %}error{% endif %}">{{ case.get_status_display }}</span></div>
+<div class="grid"><div class="stack"><section class="card"><h2>Request & payment</h2><dl>
+<div class="kv"><dt>Payment</dt><dd>{{ case.payment.reference }} · {{ case.payment.merchant }}</dd></div>
+<div class="kv"><dt>Original amount</dt><dd class="amount">{{ case.payment.amount_minor|dollars }} {{ case.payment.currency }}</dd></div>
+<div class="kv"><dt>Previously refunded</dt><dd>{{ case.payment.previously_refunded_minor|dollars }} {{ case.payment.currency }}</dd></div>
+<div class="kv"><dt>Available to reserve</dt><dd class="amount">{{ remaining|dollars }} {{ case.payment.currency }}</dd></div>
+<div class="kv"><dt>Requested</dt><dd class="amount">{{ case.requested_minor|dollars }} {{ case.payment.currency }}</dd></div>
+<div class="kv"><dt>Assignee</dt><dd>{{ case.assignee.username|default:"Unassigned" }}</dd></div>
+<div class="kv"><dt>Submitted by</dt><dd>{{ case.submitter.username }}</dd></div>
+</dl><h3>Notes</h3><p id="note-preview" class="muted">Loading note…</p>
+{{ case.note|json_script:"case-note" }}
+</section>
+<section class="card"><h2>Activity & audit</h2><ol class="timeline">{% for event in events %}<li><strong>{{ event.actor.username }}</strong> · {{ event.action }}<br><time>{{ event.occurred_at|date:"M j, Y H:i:s" }} UTC</time><details><summary>Before / after</summary><pre>{{ event.before }}</pre><pre>{{ event.after }}</pre></details></li>{% empty %}<li>No activity yet.</li>{% endfor %}</ol></section></div>
+<div class="stack"><section class="card"><h2>Case actions</h2>
+{% if perms.refunds.manage_case %}
+<form method="post" action="{% url 'refunds:action' case.reference %}">{% csrf_token %}<input type="hidden" name="action" value="assign">{{ assign_form.as_p }}<button class="secondary">Assign case</button></form><hr>
+<form method="post" action="{% url 'refunds:action' case.reference %}">{% csrf_token %}<input type="hidden" name="action" value="note">{{ note_form.as_p }}<button class="secondary">Add note</button></form><hr>
+{% if case.status == 'new' or case.status == 'information' %}<form method="post" class="inline-form" action="{% url 'refunds:action' case.reference %}">{% csrf_token %}<button name="action" value="submit">Submit for review</button></form>{% endif %}
+{% if case.status == 'new' or case.status == 'review' %}<form method="post" class="inline-form" action="{% url 'refunds:action' case.reference %}">{% csrf_token %}<button name="action" value="request_info" class="secondary">Request information</button></form>{% endif %}
+{% endif %}
+{% if perms.refunds.approve_refund and case.status == 'review' %}<hr><h3>Refund decision</h3><p class="small muted">Simulated approval only. Submitters cannot decide their own cases.</p>
+<form method="post" class="inline-form" action="{% url 'refunds:action' case.reference %}">{% csrf_token %}<button name="action" value="approve">Approve refund</button></form>
+<form method="post" class="inline-form" action="{% url 'refunds:action' case.reference %}">{% csrf_token %}<button name="action" value="reject" class="secondary">Reject refund</button></form>{% endif %}
+</section><section class="card"><h3>Something wrong?</h3><p class="small muted">Report an issue or suggest a change with this case attached.</p><a href="{{ control_url }}/new/?route={{ request.path|urlencode }}&case={{ case.reference|urlencode }}" class="button secondary">Report an issue / Request a change</a></section></div></div>
+<script src="{% static 'refunds/capture.js' %}"></script><script src="{% static 'refunds/detail.js' %}"></script>
+{% endblock %}

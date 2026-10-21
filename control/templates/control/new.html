@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Report a change{% endblock %}
+{% block content %}<div class="pagehead"><div><h1>Report an issue / Request a change</h1><p>Describe what happened and what you expect, or paste a team spec.</p></div></div>
+<section class="card narrow"><form method="post">{% csrf_token %}
+<label for="source">Source</label><select id="source" name="source"><option value="report">Issue / request</option><option value="team spec">Team spec</option></select><p></p>
+<label for="report">Your request</label><textarea id="report" name="report" required maxlength="12000" autofocus placeholder="In the refund queue, I expected…"></textarea>
+<p class="helptext">OS dictation works in this text field. Report text is treated as untrusted data.</p>
+<input type="hidden" name="route" value="{{ route }}"><input type="hidden" name="case" value="{{ case }}">
+<p class="small muted">Attached: route {{ route|default:"not provided" }}{% if case %} · case {{ case }}{% endif %} · deployed revision captured server-side</p><button>Submit request</button>
+</form></section>{% endblock %}

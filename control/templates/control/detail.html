@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Change #{{ change.pk }}{% endblock %}
+{% block content %}
+<div class="pagehead"><div><a class="small" href="{% url 'control:list' %}">← Change console</a><h1>Change #{{ change.pk }}</h1><p>{{ change.get_status_display }} · {{ change.mode|capfirst }}{% if change.mode == 'sample' %} fixture, not a Devin run{% endif %} · {{ change.run_id|slice:":12" }}</p></div><span class="badge {% if change.risk == 'owner' %}error{% elif change.risk == 'review' %}warn{% endif %}">Enforced route: {{ change.risk }}</span></div>
+<div class="grid"><section class="card"><h2>Original request</h2><p class="labelled">{{ change.source }} by {{ change.reporter.username }} · {{ change.created_at|date:"M j, Y H:i" }} UTC</p><pre>{{ change.report }}</pre>
+<dl><div class="kv"><dt>Source route / case</dt><dd>{{ change.route|default:"—" }} / {{ change.case_reference|default:"—" }}</dd></div><div class="kv"><dt>Deployed at intake</dt><dd class="mono">{{ change.source_commit|default:"unavailable" }}</dd></div>
+<div class="kv"><dt>Triage</dt><dd>{{ change.triage|default:"Pending" }}</dd></div><div class="kv"><dt>Acceptance</dt><dd>{{ change.acceptance|default:"Awaiting clarification" }}</dd></div><div class="kv"><dt>Owner</dt><dd>{{ change.owner }}</dd></div>
+<div class="kv"><dt>Devin session</dt><dd>{% if change.session_url %}<a href="{{ change.session_url }}" target="_blank" rel="noopener">{{ change.session_id }}</a>{% elif change.mode == 'sample' %}None (sample fixture){% else %}Awaiting real session{% endif %}<span class="muted"> · provider {{ change.provider_status|default:"not connected" }}</span></dd></div>
+<div class="kv"><dt>Base / candidate</dt><dd class="mono">{{ change.base|default:"—" }}<br>{{ change.head|default:"—" }}</dd></div>
+<div class="kv"><dt>Checks</dt><dd>{{ change.check_result }}{% if change.checked_head %} on <span class="mono">{{ change.checked_head|slice:":12" }}</span>{% endif %}</dd></div>
+<div class="kv"><dt>Result</dt><dd>{% if change.released_commit %}Released {{ change.released_commit }}{% elif change.merged_commit %}Merged {{ change.merged_commit }} (not released){% else %}Not merged{% endif %}</dd></div></dl>
+{% if change.duplicate_of %}<p class="flash">Duplicate of <a href="{% url 'control:detail' change.duplicate_of.pk %}">change #{{ change.duplicate_of.pk }}</a>. No new repair run.</p>{% endif %}
+{% if change.status == 'needs_info' and change.reporter_id == user.id %}<h3>Clarify this request</h3><p>{{ change.triage }}</p><form method="post" action="{% url 'control:answer' change.pk %}">{% csrf_token %}<textarea name="answer" aria-label="Your clarification" required></textarea><button>Send clarification</button></form>{% endif %}
+</section><section class="card"><h2>Investigation packet</h2>
+<p class="small muted">Copy into Devin Cloud in manual mode. This is a handoff, not a fabricated agent session.</p><textarea class="copybox" readonly aria-label="Copyable job packet">{{ change.packet }}</textarea>
+{% if admin and change.incidents.exists %}<h3>Captured errors (admin only)</h3>{% for incident in incidents %}<div class="kv"><dt>Correlation</dt><dd class="mono">{{ incident.correlation_id }}</dd></div><div class="kv"><dt>Actual error</dt><dd>{{ incident.message }}</dd></div>
+<p class="labelled">{{ incident.environment }} · {{ incident.route }} · {{ incident.deployed_commit }}</p><pre>{{ incident.stack }}</pre><p>Sanitized log excerpt</p><pre>{{ incident.log_excerpt }}</pre>{% endfor %}{% endif %}
+</section></div>
+{% if admin %}<section class="card"><h2>Candidate workspace</h2>
+{% if change.mode == 'sample' and change.status != 'duplicate' and change.status != 'needs_info' %}<form class="inline-form" method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}<button name="action" value="fixture" class="secondary">Attach known fixture commit</button></form>
+{% if change.head %}<form class="inline-form" method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}<input type="hidden" name="revision" value="1"><button name="action" value="fixture" class="secondary">Replay revision (Unassigned)</button></form>{% endif %}{% endif %}
+{% if change.status != 'duplicate' and change.status != 'needs_info' %}<details><summary>Attach real candidate and optional real Devin session</summary><form method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}
+<p><label for="head">Local full candidate commit</label><input id="head" name="head" required pattern="[0-9a-f]{40}"></p><p><label for="session_id">Real session ID (optional)</label><input id="session_id" name="session_id" placeholder="devin-..."></p><p><label for="session_url">Real session URL (optional)</label><input id="session_url" name="session_url" type="url" placeholder="https://app.devin.ai/..."></p><button name="action" value="attach">Attach & run checks</button></form></details>{% endif %}
+<p class="small">Source diff and test results are tied to a specific base and candidate head. A new head invalidates both checks and approval.</p>
+{% if change.head %}<h3>Source diff</h3><pre>{{ diff|default:"No diff available" }}</pre><h3>Independent check output</h3><pre>{{ change.check_output|default:"Waiting for worker…" }}</pre>{% endif %}
+</section>{% endif %}
+{% if change.preview_url %}<div class="review-layout"><section class="card"><h2>Candidate preview</h2><p class="small muted">Revision <span class="mono">{{ change.head|slice:":12" }}</span> · separate synthetic SQLite copy. <a href="{{ change.preview_url }}" target="_blank" rel="noopener">Open in new tab ↗</a></p><iframe class="preview" title="Candidate refunds preview" src="{{ change.preview_url }}"></iframe></section>
+<section class="card"><h2>Review workspace</h2><p>Checked {{ change.check_result }} · {{ change.risk }} route.</p><p class="small muted">{{ merge_gate|default:"Checks passed; review the actual preview." }}</p>
+{% if admin and change.status != 'merged' and change.status != 'released' %}
+{% if change.risk != 'auto' %}<form method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}<button name="action" value="approve">Approve change</button></form>{% endif %}
+<hr><form method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}<label for="question">Ask a question / Request changes</label><textarea id="question" name="message" required placeholder="What should change or be clarified?"></textarea><div class="actions"><button name="action" value="question" class="secondary">Ask a question</button><button name="action" value="changes" class="secondary">Request changes</button></div></form>
+{% endif %}{% if policy_owner and change.risk == 'owner' and change.check_result == 'passed' %}<hr><form method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}<button name="action" value="owner_attest" class="secondary">Attest as refund policy owner</button></form>{% endif %}</section></div>{% endif %}
+<div class="grid equal"><section class="card"><h2>Review thread</h2>{% for review in reviews %}<article><p><strong>{{ review.actor.username }}</strong> · {{ review.kind }} <span class="badge {% if review.delivery == 'failed' %}error{% elif review.delivery == 'pending' %}warn{% endif %}">{{ review.delivery }}</span></p><pre>{{ review.message }}</pre>{% if review.response %}<p>Response ({{ change.mode }}):</p><pre>{{ review.response }}</pre>{% endif %}</article>{% empty %}<p class="muted">No review messages yet.</p>{% endfor %}
+{% if admin %}{% for review,followup in followups %}<h3>Follow-up awaiting handoff</h3><textarea class="copybox" readonly aria-label="Copyable follow-up packet">{{ followup }}</textarea>
+{% if change.mode != 'live' %}<form method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}<input type="hidden" name="review_id" value="{{ review.pk }}"><label for="response-{{ review.pk }}">Copy back the real response or label a sample reply</label><textarea id="response-{{ review.pk }}" name="response" required></textarea><button name="action" value="feedback_response">Record response</button></form>{% endif %}{% endfor %}{% endif %}
+</section><section class="card"><h2>Trace inspector</h2><p class="small muted">Persisted events only. Run <span class="mono">{{ change.run_id }}</span>.</p><ol class="timeline" id="trace">{% for item in events %}<li><strong>{{ item.stage }}</strong> · {{ item.actor }} / {{ item.source }}<br><time>{{ item.created_at|date:"M j H:i:s" }} UTC</time><p>{{ item.detail }}</p>{% if item.evidence %}<a href="{{ item.evidence }}">Evidence ↗</a>{% endif %}</li>{% empty %}<li>No progress events yet.</li>{% endfor %}</ol></section></div>
+<script>
+let count = {{ events.count }};
+setInterval(async () => {
+  try { const response = await fetch("{% url 'control:events' change.pk %}", {credentials:"same-origin"});
+    if (response.ok && (await response.json()).events !== count) location.reload();
+  } catch (_) { /* Offline: retain the last persisted state. */ }
+}, 4000);
+</script>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FinCorp{% endblock %} | FinCorp</title>
+  <link rel="stylesheet" href="{% static 'site.css' %}">
+  <style>:root{--navy:{{ brand.NAVY }};--teal:{{ brand.TEAL }}}</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="wordmark" href="/">fin<span>corp</span><small> / {% if app_role == 'refunds' %}refunds{% else %}change console{% endif %}</small></a>
+  <nav aria-label="Main navigation">
+    {% if app_role == 'refunds' %}
+      <a href="{% url 'refunds:queue' %}">Refund queue</a>
+      <a href="{{ control_url }}/new/?route={{ request.path|urlencode }}">Report an issue / Request a change</a>
+    {% else %}
+      <a href="{% url 'control:list' %}">Changes</a><a href="{% url 'control:new' %}">Report an issue / Request a change</a>
+      <a href="{{ runtime_url }}/">Refunds ↗</a>
+    {% endif %}
+    {% if user.is_authenticated %}<span class="user">{{ user.username }}</span>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link-button">Sign out</button></form>{% endif %}
+  </nav>
+</header>
+<main class="shell">
+  <div class="eyebrow"><span class="dot"></span> Synthetic data <span class="sep">/</span> {{ mode|capfirst }} integration {% block context_label %}{% endblock %}</div>
+  {% if messages %}<div role="status">{% for message in messages %}<p class="flash {{ message.tags }}">{{ message }}</p>{% endfor %}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>
