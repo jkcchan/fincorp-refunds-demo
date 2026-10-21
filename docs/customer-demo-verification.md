@@ -88,3 +88,11 @@ refunds, with the reference baseline still on `:8401`. The previous
 manual demo's servers were stopped without deleting their databases,
 worktrees, or review history. The current presenter steps and ports are in
 `docs/demo-walkthrough.md`.
+
+The populated rehearsal state was subsequently selected for the live demo
+at `:8000` and `:8001` without resetting or deleting any database. Its
+recorded changes #1 and #2 remain released, with their original baseline
+at `:8401` and their working checked previews at `:8301` and `:8302`.
+The unused empty presenter checkout was stopped and retained. The
+before/after browser checks passed again after the port switch. The
+short current-state guide is `docs/demo-walkthrough.md`.

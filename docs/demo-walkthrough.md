@@ -1,67 +1,57 @@
-# FinCorp customer demo
+# FinCorp demo: two existing before-and-after changes
 
-Use **refunds at http://127.0.0.1:8001/** and the **change console at
-http://127.0.0.1:8000/**. Sign in to refunds as `ops` / `ops-demo-2026`.
-For software review, sign in to the console as `toolsadmin` /
-`tools-demo-2026`. These are separate local demo accounts.
+Open the **refund queue** at http://127.0.0.1:8001/ and the **change
+console** at http://127.0.0.1:8000/. Sign in to refunds as
+`ops` / `ops-demo-2026`. To inspect the software review controls, use
+`toolsadmin` / `tools-demo-2026` on the console.
 
-This is a **sample replay**, not a live Devin session. The candidate is a
-real, locally authored commit. The worker performs real browser checks,
-starts its preview, and enforces review and release policy. No agent session
-or hidden reasoning is being shown.
+These changes are already **released**. Do not file another report, reset
+the database, or click **Approve change** again. The candidates are real
+local commits in a **sample replay**, not patches or sessions from live Devin.
+The browser checks, review decisions, merges, and releases shown in the
+trace did actually run locally.
 
-## 1. Show the queue and reproduce the bug
+## 1. Show the working refund queue
 
-Show the default refund queue, search and status filters, and USD/CAD amounts.
-Search for **RF-1009** (Maple Grove Pantry) and open it. In the right column,
-scroll past **Case actions** to **Share case**, then click **Copy case link**.
-On this named baseline, nothing is copied and no confirmation appears.
+Show the search, status and assignee filters, USD/CAD amounts, and synthetic
+cases. Search for **RF-1009** (Maple Grove Pantry, PAY-MAPLE-008). Open its
+detail and scroll to **Share case** below **Case actions**. **Copy case link**
+now shows **Case link copied.** This is the released version.
 
-To jump straight to the button after logging in, open
-http://127.0.0.1:8001/cases/RF-1009/#copy-case-link.
+Direct link after signing in:
+http://127.0.0.1:8001/cases/RF-1009/#copy-case-link
 
-## 2. Report it and compare the preview
+## 2. Compare before and after for change #1
 
-On RF-1009, click **Report an issue / Request a change**. Enter:
+Open http://127.0.0.1:8000/changes/1/. Show the reporter's original
+plain-language issue, its case reference and route, the source diff,
+independent browser check output, and the **Trace inspector**. The
+frontend change took the enforced **review** route. The trace records a
+tools-admin **Approve change**, then separate **Merged** and **Released**
+events. It did not change any refund decision.
 
-> On RF-1009, Copy case link does nothing when I click it. I expected a link
-> I can share and a confirmation.
+Keep two tabs open, signing in as `ops` if prompted:
 
-Open **change #1** at http://127.0.0.1:8000/changes/1/. Wait for **Ready
-for review**. Point out the attached case/route, locally authored candidate
-revision, source diff, and trace. The trace records actual baseline and
-preview browser checks. The frontend change is routed to **review**, not
-automatic release.
+- **Before:** http://127.0.0.1:8401/cases/RF-1009/ . Click **Copy case
+  link**. It does nothing and shows no confirmation.
+- **Checked candidate:** http://127.0.0.1:8301/cases/RF-1009/ . Click the
+  same button. It copies the case URL and shows **Case link copied.**
 
-Click **Open original version** to see the broken case at
-http://127.0.0.1:8401/cases/RF-1009/. Open the candidate preview at
-http://127.0.0.1:8301/cases/RF-1009/. Log in as `ops` if needed. On the
-original, the button stays silent. On the preview, it shows **Case link
-copied.** and copies the case URL.
+The original baseline remains available after release so this comparison
+does not require rolling the live refunds app backward.
 
-## 3. Ship the reviewed change
+## 3. Show automatic low-risk change #2
 
-In the console, sign in as `toolsadmin`. Review the preview and check output,
-then click **Approve change**. Wait for **Merged**, then **Released**.
-Refresh RF-1009 at `:8001` and confirm the button now works. This is
-software approval; it does **not** approve a refund.
+Open http://127.0.0.1:8000/changes/2/. Its actual diff changes only an
+existing display string. Show the `auto` policy result, the red/green
+browser output, and the **Merged** and **Released** trace events. There
+was no software approval click.
 
-## 4. Show a low-risk automatic change
+Compare the queue description at http://127.0.0.1:8401/ (**Review
+requets and track every decision.**) with the checked preview at
+http://127.0.0.1:8302/ or released runtime at `:8001` (**Review requests
+and track every decision.**).
 
-Return to the refund queue at `:8001`. Its description still says **Review
-requets and track every decision.** Click the queue's **Report an issue /
-Request a change** link and enter:
-
-> Queue copy typo: Review requets and track every decision. should read
-> Review requests and track every decision.
-
-Open **change #2** at http://127.0.0.1:8000/changes/2/. The worker checks
-the typo on the runtime and the correction in the preview at `:8302`.
-The actual diff touches only an allowlisted display string, so the policy
-routes it to **auto**. No approval click is required. Compare the original
-queue at `:8401` with the preview or released queue at `:8001`, then point
-out separate **Merged** and **Released** trace events.
-
-Run #1 before #2: each fixture must be checked against the release that
-actually exists at intake. The existing manual demo databases were preserved;
-this customer walkthrough uses a separate checkout.
+Call the trace a **recorded sample workflow**. It shows the controller's
+persisted events and checks, not Devin's internal reasoning or a live agent
+session.
