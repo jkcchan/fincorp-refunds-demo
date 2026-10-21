@@ -6,10 +6,10 @@
 <form method="get" class="card filter-row"><div><label for="status">Stage</label><select id="status" name="status"><option value="">All work</option>{% for value,label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><button>Filter</button></form>
 <section class="card tablewrap"><table><thead><tr><th>Request</th><th>Source / mode</th><th>Agent / session</th><th>Enforced risk</th><th>Stage</th><th>Checks</th><th>Preview</th><th>Final result</th></tr></thead><tbody>
 {% for item in items %}<tr><td><a href="{% url 'control:detail' item.pk %}"><strong>#{{ item.pk }} {{ item.report|truncatechars:58 }}</strong></a><div class="muted small">{{ item.created_at|date:"M j, H:i" }} · {{ item.reporter.username }}</div></td>
-<td>{{ item.source }}<div class="muted">{{ item.mode|capfirst }}{% if item.mode == 'sample' %} fixture{% endif %}</div></td>
+<td>{{ item.source }}<div class="muted">{% if item.source == 'recorded sample' %}Prior run · not active runtime{% else %}{{ item.mode|capfirst }}{% if item.mode == 'sample' %} fixture{% endif %}{% endif %}</div></td>
 <td>{% if item.session_url %}<a href="{{ item.session_url }}" target="_blank" rel="noopener">Devin session ↗</a>{% elif item.mode == 'sample' %}No session · fixture{% else %}Awaiting handoff{% endif %}</td>
 <td><span class="badge {% if item.risk == 'owner' %}error{% elif item.risk == 'review' %}warn{% endif %}">{{ item.risk }}</span></td>
-<td>{{ item.get_status_display }}</td><td>{{ item.check_result }}</td><td>{% if item.preview_url %}<a href="{{ item.preview_url }}" target="_blank" rel="noopener">Open preview ↗</a>{% else %}—{% endif %}</td>
-<td>{% if item.released_commit %}Released <span class="mono">{{ item.released_commit|slice:":8" }}</span>{% elif item.merged_commit %}Merged <span class="mono">{{ item.merged_commit|slice:":8" }}</span>{% else %}—{% endif %}</td></tr>
+<td>{{ item.get_status_display }}{% if item.source == 'recorded sample' %}<div class="muted small">Recorded, not deployed now</div>{% endif %}</td><td>{{ item.check_result }}</td><td>{% if item.preview_url %}<a href="{{ item.preview_url }}" target="_blank" rel="noopener">Open preview ↗</a>{% else %}—{% endif %}</td>
+<td>{% if item.source == 'recorded sample' %}Prior-cycle auto-release <span class="mono">{{ item.released_commit|slice:":8" }}</span>{% elif item.released_commit %}Released <span class="mono">{{ item.released_commit|slice:":8" }}</span>{% elif item.merged_commit %}Merged <span class="mono">{{ item.merged_commit|slice:":8" }}</span>{% else %}—{% endif %}</td></tr>
 {% empty %}<tr><td colspan="8">No work here yet. Submit a report to begin.</td></tr>{% endfor %}</tbody></table></section>
 {% endblock %}

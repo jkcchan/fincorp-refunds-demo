@@ -2,6 +2,7 @@
 {% block title %}Change #{{ change.pk }}{% endblock %}
 {% block content %}
 <div class="pagehead"><div><a class="small" href="{% url 'control:list' %}">← Change console</a><h1>Change #{{ change.pk }}</h1><p>{{ change.get_status_display }} · {{ change.mode|capfirst }}{% if change.mode == 'sample' %} fixture, not a Devin run{% endif %} · {{ change.run_id|slice:":12" }}</p></div><span class="badge {% if change.risk == 'owner' %}error{% elif change.risk == 'review' %}warn{% endif %}">Enforced route: {{ change.risk }}</span></div>
+{% if recording %}<p class="flash">Recorded local sample run from a prior demo cycle. Its checks, merge and release happened then, not on the current refunds runtime at :8001. This recording is read-only and has no Devin session.</p>{% endif %}
 <div class="grid"><section class="card"><h2>Original request</h2><p class="labelled">{{ change.source }} by {{ change.reporter.username }} · {{ change.created_at|date:"M j, Y H:i" }} UTC</p><pre>{{ change.report }}</pre>
 {% if change.create_uncertain %}<p class="flash error">Session creation had an ambiguous response. Do not retry until reconciled against Devin Cloud; no second paid run is started automatically.</p>
 {% if admin %}<form method="post" action="{% url 'control:action' change.pk %}">{% csrf_token %}<label for="reconcile-id">Actual matching session ID</label><input id="reconcile-id" name="session_id" placeholder="devin-..."><button name="action" value="reconcile_session" class="secondary">Verify existing session</button></form>{% endif %}{% endif %}
@@ -15,7 +16,7 @@
 {% if change.duplicate_of %}<p class="flash">Duplicate of <a href="{% url 'control:detail' change.duplicate_of.pk %}">change #{{ change.duplicate_of.pk }}</a>. No new repair run.</p>{% endif %}
 {% if change.status == 'needs_info' and change.reporter_id == user.id %}<h3>Clarify this request</h3><p>{{ change.triage }}</p><form method="post" action="{% url 'control:answer' change.pk %}">{% csrf_token %}<textarea name="answer" aria-label="Your clarification" required></textarea><button>Send clarification</button></form>{% endif %}
 </section><section class="card"><h2>Investigation packet</h2>
-<p class="small muted">Copy into Devin Cloud in manual mode. This is a handoff, not a fabricated agent session.</p><textarea class="copybox" readonly aria-label="Copyable job packet">{{ change.packet }}</textarea>
+<p class="small muted">{% if recording %}Original packet from the prior local sample run, for inspection only.{% else %}Copy into Devin Cloud in manual mode. This is a handoff, not a fabricated agent session.{% endif %}</p><textarea class="copybox" readonly aria-label="Copyable job packet">{{ change.packet }}</textarea>
 {% if admin and change.incidents.exists %}<h3>Captured errors (admin only)</h3>{% for incident in incidents %}<div class="kv"><dt>Correlation</dt><dd class="mono">{{ incident.correlation_id }}</dd></div><div class="kv"><dt>Actual error</dt><dd>{{ incident.message }}</dd></div>
 <p class="labelled">{{ incident.environment }} · {{ incident.route }} · {{ incident.deployed_commit }}</p><pre>{{ incident.stack }}</pre><p>Sanitized log excerpt</p><pre>{{ incident.log_excerpt }}</pre>{% endfor %}{% endif %}
 </section></div>

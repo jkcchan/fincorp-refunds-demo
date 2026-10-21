@@ -297,6 +297,20 @@ class CustomerDemoTests(TestCase):
         self.assertNotIn("sample_scenario", change.safe_context)
         self.assertFalse(change.jobs.exists())
 
+    def test_prior_sample_recording_is_visible_but_cannot_be_approved(self):
+        change = Change.objects.create(
+            reporter=self.ops, report="Recorded queue wording correction", source="recorded sample",
+            mode="sample", status="released", risk="auto", check_result="passed",
+            released_commit="a" * 40,
+        )
+        self.client.force_login(self.ops)
+        self.assertContains(self.client.get(reverse("control:list")), "Prior-cycle auto-release")
+        self.assertContains(self.client.get(reverse("control:detail", args=[change.pk])),
+                            "not on the current refunds runtime")
+        self.client.force_login(get_user_model().objects.get(username="toolsadmin"))
+        self.assertEqual(self.client.post(reverse("control:action", args=[change.pk]), {"action": "approve"}).status_code, 403)
+        self.assertFalse(change.jobs.exists())
+
     @patch("control.logic.git", return_value=CONFIG["baseline"])
     def test_queue_copy_queues_a_fixture_separate_from_behavior(self, unused):
         with patch.dict(os.environ, {"FINCORP_MODE": "sample", "FINCORP_CUSTOMER_DEMO": "1"}):

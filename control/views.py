@@ -58,6 +58,7 @@ def new(request):
 @login_required
 def detail(request, pk):
     change = get_object_or_404(Change.objects.select_related("reporter", "duplicate_of"), pk=pk)
+    recording = change.source == "recorded sample"
     scenario = change.safe_context.get("sample_scenario") if change.mode == "sample" else None
     original = os.getenv("FINCORP_ORIGINAL_URL", "") if scenario else ""
     before_url = ""
@@ -73,10 +74,11 @@ def detail(request, pk):
     admin = request.user.has_perm("control.review_change")
     return render(request, "control/detail.html", {
         "change": change, "diff": diff, "admin": admin,
+        "recording": recording,
         "policy_owner": request.user.groups.filter(name="Refund policy owners").exists(),
         "events": change.events.all(), "incidents": change.incidents.all() if admin else [],
         "reviews": change.reviews.select_related("actor"),
-        "merge_gate": can_merge(change)[1] if change.head else "No candidate attached.",
+        "merge_gate": ("Prior-cycle result; not the current release gate." if recording else can_merge(change)[1]) if change.head else "No candidate attached.",
         "followups": [(r, followup(r)) for r in change.reviews.filter(delivery__in=["pending", "failed", "uncertain"])] if admin else [],
         "before_url": before_url,
     })
@@ -107,6 +109,8 @@ def action(request, pk):
     ):
         raise PermissionDenied
     change = get_object_or_404(Change, pk=pk)
+    if change.source == "recorded sample":
+        raise PermissionDenied("A prior-run recording cannot be changed.")
     action_name = request.POST.get("action")
     try:
         if action_name == "attach":
